@@ -2,15 +2,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
+import { assertRateLimit } from '@/lib/rate-limit';
+import { extractClientIp } from '@/modules/auth/resolve-actor';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 const createHoldBodySchema = z.object({
   tenantId: z.string().min(1),
   locationId: z.string().min(1),
   customer: z.object({
-    fullName: z.string().min(2).max(160),
-    phone: z.string().min(10).max(16),
-    email: z.string().email().optional(),
+    fullName: z.string().trim().min(2).max(160),
+    phone: z.string().trim().min(10).max(20),
+    email: z.string().trim().email().optional().or(z.literal('')).transform((v) => v || undefined),
     notes: z.string().max(500).optional(),
   }),
   selection: z.discriminatedUnion('bookingModel', [
@@ -18,20 +20,20 @@ const createHoldBodySchema = z.object({
       bookingModel: z.literal('exclusive_resource'),
       resourceId: z.string().min(1),
       serviceId: z.string().optional(),
-      startsAtIso: z.string().datetime(),
-      endsAtIso: z.string().datetime(),
+      startsAtIso: z.string().datetime({ offset: true }),
+      endsAtIso: z.string().datetime({ offset: true }),
     }),
     z.object({
       bookingModel: z.literal('staff_appointment'),
       serviceId: z.string().min(1),
       staffMemberId: z.string().min(1),
-      startsAtIso: z.string().datetime(),
-      endsAtIso: z.string().datetime(),
+      startsAtIso: z.string().datetime({ offset: true }),
+      endsAtIso: z.string().datetime({ offset: true }),
     }),
     z.object({
       bookingModel: z.literal('capacity_session'),
       sessionId: z.string().min(1),
-      quantity: z.number().int().min(1).max(10).default(1),
+      quantity: z.number().int().min(1).max(20).default(1),
     }),
   ]),
 });
@@ -44,6 +46,7 @@ const bookingService = new BookingServiceImpl();
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    await assertRateLimit(extractClientIp(request), 'public:hold_create');
     const idempotencyKey = requireIdempotencyKey(request.headers.get('idempotency-key'));
     const json: unknown = await request.json();
     const parsed = createHoldBodySchema.safeParse(json);
@@ -63,30 +66,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { tenantId, locationId, customer, selection } = parsed.data;
 
-    let targetSelection;
-    if (selection.bookingModel === 'exclusive_resource') {
-      targetSelection = {
-        bookingModel: 'exclusive_resource' as const,
-        resourceId: selection.resourceId,
-        serviceId: selection.serviceId,
-        startsAt: new Date(selection.startsAtIso),
-        endsAt: new Date(selection.endsAtIso),
-      };
-    } else if (selection.bookingModel === 'staff_appointment') {
-      targetSelection = {
-        bookingModel: 'staff_appointment' as const,
-        serviceId: selection.serviceId,
-        staffMemberId: selection.staffMemberId,
-        startsAt: new Date(selection.startsAtIso),
-        endsAt: new Date(selection.endsAtIso),
-      };
-    } else {
-      targetSelection = {
-        bookingModel: 'capacity_session' as const,
-        sessionId: selection.sessionId,
-        quantity: selection.quantity,
-      };
-    }
+    const targetSelection =
+      selection.bookingModel === 'exclusive_resource'
+        ? {
+            bookingModel: 'exclusive_resource' as const,
+            resourceId: selection.resourceId,
+            serviceId: selection.serviceId,
+            startsAt: new Date(selection.startsAtIso),
+            endsAt: new Date(selection.endsAtIso),
+          }
+        : selection.bookingModel === 'staff_appointment'
+        ? {
+            bookingModel: 'staff_appointment' as const,
+            serviceId: selection.serviceId,
+            staffMemberId: selection.staffMemberId,
+            startsAt: new Date(selection.startsAtIso),
+            endsAt: new Date(selection.endsAtIso),
+          }
+        : {
+            bookingModel: 'capacity_session' as const,
+            sessionId: selection.sessionId,
+            quantity: selection.quantity,
+          };
 
     const holdResult = await bookingService.createHold({
       tenantId,

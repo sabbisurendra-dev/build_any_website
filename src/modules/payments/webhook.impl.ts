@@ -7,43 +7,45 @@ import type {
 import { RazorpayGatewayAdapter } from './razorpay.adapter';
 import { SimulatedPaymentGatewayAdapter } from './simulated.adapter';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
-import { NotificationDispatcherImpl } from '@/modules/notifications/notification.impl';
+import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
 
 export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort {
-  private static processedEventIds: Set<string> = new Set();
   private razorpayGateway = new RazorpayGatewayAdapter();
   private simulatedGateway = new SimulatedPaymentGatewayAdapter();
   private bookingService = new BookingServiceImpl();
-  private notifications = new NotificationDispatcherImpl();
 
   public async processIncomingWebhook(
     envelope: IncomingWebhookEnvelope,
   ): Promise<WebhookProcessResult> {
     const { provider, providerEventId, signatureHeader, rawBody } = envelope;
 
-    // 1. Signature Verification BEFORE JSON parsing
+    // 1. Cryptographic HMAC Signature Verification BEFORE JSON parsing
     let isValid = false;
     if (provider === 'razorpay') {
       isValid = this.razorpayGateway.verifyWebhookSignature(rawBody, signatureHeader);
     } else if (provider === 'simulated') {
-      // For simulated mode, verify via adapter or test token
-      isValid = signatureHeader.length >= 16;
+      isValid = this.simulatedGateway.verifyWebhookSignature(rawBody, signatureHeader);
     }
 
     if (!isValid) {
-      throw new AppError('PAYMENT_SIGNATURE_INVALID', 'Invalid webhook HMAC signature.', 401);
+      throw new AppError(
+        'PAYMENT_SIGNATURE_INVALID',
+        'Invalid webhook HMAC signature.',
+        401,
+      );
     }
 
-    // 2. Idempotent Deduplication
+    // 2. Idempotent Deduplication persisted in RuntimeStateRepository
+    const state = RuntimeStateRepository.getState();
     const eventKey = `${provider}:${providerEventId}`;
-    if (PaymentWebhookProcessorImpl.processedEventIds.has(eventKey)) {
+    if (state.processedWebhookKeys.includes(eventKey)) {
       return {
         status: 'duplicate_ignored',
         eventType: 'payment.captured',
       };
     }
 
-    // 3. Parse JSON Body safely after signature check
+    // 3. Parse JSON Body safely after signature verification
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(rawBody) as Record<string, unknown>;
@@ -53,35 +55,63 @@ export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort 
 
     const eventType = (parsed.event as string) || 'payment.captured';
 
-    // 4. Process Payment Capture
+    // 4. Process Payment Capture / Failure
     if (eventType === 'payment.captured' || eventType === 'order.paid') {
       const payload = (parsed.payload as Record<string, unknown>) ?? {};
-      const paymentEntity = ((payload.payment as Record<string, unknown>)?.entity as Record<string, unknown>) ?? {};
-      const notes = (paymentEntity.notes as Record<string, unknown>) ?? (parsed.notes as Record<string, unknown>) ?? {};
+      const paymentEntity =
+        ((payload.payment as Record<string, unknown>)?.entity as Record<
+          string,
+          unknown
+        >) ?? {};
+      const notes =
+        (paymentEntity.notes as Record<string, unknown>) ??
+        (parsed.notes as Record<string, unknown>) ??
+        {};
 
-      const tenantId = (notes.tenantId as string) ?? 't-kickoff-01';
-      const bookingId = (notes.bookingId as string) ?? 'bk-001';
-      const paymentId = (paymentEntity.id as string) ?? providerEventId;
+      const tenantId = String(notes.tenantId ?? '');
+      const bookingId = String(notes.bookingId ?? '');
+      const paymentId = String(paymentEntity.id ?? providerEventId);
+
+      if (!tenantId || !bookingId) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'Webhook payload missing tenantId or bookingId in payment notes.',
+          400,
+        );
+      }
 
       await this.bookingService.confirmBookingFromVerifiedPayment({
         tenantId,
         bookingId,
         paymentId,
       });
+    } else if (eventType === 'payment.failed') {
+      const payload = (parsed.payload as Record<string, unknown>) ?? {};
+      const paymentEntity =
+        ((payload.payment as Record<string, unknown>)?.entity as Record<
+          string,
+          unknown
+        >) ?? {};
+      const notes =
+        (paymentEntity.notes as Record<string, unknown>) ??
+        (parsed.notes as Record<string, unknown>) ??
+        {};
+      const tenantId = String(notes.tenantId ?? '');
+      const bookingId = String(notes.bookingId ?? '');
+      const orderId = String(paymentEntity.order_id ?? '');
 
-      await this.notifications.enqueue({
-        tenantId,
-        bookingId,
-        channel: 'email',
-        templateKey: 'booking.confirmed',
-        recipient: 'customer@example.com',
-        idempotencyKey: `notif:${providerEventId}`,
-        payload: { bookingId, amount: paymentEntity.amount },
-      });
+      if (tenantId && bookingId && orderId) {
+        await this.bookingService.recordPaymentFailure({
+          tenantId,
+          bookingId,
+          providerOrderId: orderId,
+          reason: 'Gateway payment.failed webhook',
+        });
+      }
     }
 
-    // Mark processed
-    PaymentWebhookProcessorImpl.processedEventIds.add(eventKey);
+    state.processedWebhookKeys.push(eventKey);
+    RuntimeStateRepository.persist();
 
     return {
       status: 'processed',
@@ -90,6 +120,7 @@ export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort 
   }
 
   public static resetForTests(): void {
-    PaymentWebhookProcessorImpl.processedEventIds.clear();
+    const state = RuntimeStateRepository.getState();
+    state.processedWebhookKeys = [];
   }
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 import { PaymentWebhookProcessorImpl } from '@/modules/payments/webhook.impl';
+import { SimulatedPaymentGatewayAdapter } from '@/modules/payments/simulated.adapter';
 import { SlotUnavailableError, SessionCapacityExceededError } from '@/lib/errors';
 import type { BookingHoldResult } from '@/modules/booking/booking.types';
 
@@ -193,11 +194,14 @@ describe('Prompt D - Concurrency, Double-Booking Protection & Concurrency Lockin
       },
     });
 
+    const gateway = new SimulatedPaymentGatewayAdapter();
+    const validSignature = gateway.computeWebhookSignatureForTest(rawBody);
+
     // First webhook delivery
     const res1 = await webhookProcessor.processIncomingWebhook({
       provider: 'simulated',
       providerEventId: 'evt_sim_001_unique',
-      signatureHeader: 'valid_mock_signature_32_chars_long',
+      signatureHeader: validSignature,
       rawBody,
     });
     expect(res1.status).toBe('processed');
@@ -206,7 +210,7 @@ describe('Prompt D - Concurrency, Double-Booking Protection & Concurrency Lockin
     const res2 = await webhookProcessor.processIncomingWebhook({
       provider: 'simulated',
       providerEventId: 'evt_sim_001_unique',
-      signatureHeader: 'valid_mock_signature_32_chars_long',
+      signatureHeader: validSignature,
       rawBody,
     });
     expect(res2.status).toBe('duplicate_ignored');

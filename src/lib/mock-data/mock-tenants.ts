@@ -140,4 +140,32 @@ export const MOCK_TENANTS: MockTenant[] = [
     createdAt: '2026-11-03T10:00:00Z',
     onboardingTimeHours: 14,
   },
+  {
+    id: 't-prana-05',
+    name: 'Prana Yoga & Functional Fitness Studio',
+    slug: 'prana-yoga',
+    vertical: 'fitness_yoga',
+    status: 'active',
+    defaultCurrency: 'INR',
+    plan: 'growth',
+    domain: 'prana-yoga.localhost:3000',
+    customDomain: 'pranayogastudio.in',
+    websiteStatus: 'published',
+    publishedVersion: 2,
+    location: {
+      name: 'HSR Layout Studio',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      address: '27th Main Road, Sector 1, HSR Layout',
+      phone: '+91 98801 55667',
+      timezone: 'Asia/Kolkata',
+    },
+    stats: {
+      totalBookings: 290,
+      monthlyRevenueMinor: 14471000, // ₹1,44,710
+      utilizationRate: 86,
+    },
+    createdAt: '2026-10-28T08:30:00Z',
+    onboardingTimeHours: 19,
+  },
 ];

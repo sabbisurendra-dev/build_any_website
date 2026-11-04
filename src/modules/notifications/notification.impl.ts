@@ -4,75 +4,70 @@ import type {
   EnqueueNotificationInput,
   NotificationDispatcherPort,
 } from './notification.port';
-
-interface StoredNotification {
-  notificationId: UUID;
-  tenantId: UUID;
-  channel: string;
-  templateKey: string;
-  recipient: string;
-  idempotencyKey: string;
-  status: 'queued' | 'sent' | 'failed';
-  payload: Record<string, unknown>;
-  createdAt: Date;
-}
+import {
+  RuntimeStateRepository,
+  type RuntimeNotificationRecord,
+} from '@/modules/persistence/runtime-store';
 
 export class NotificationDispatcherImpl implements NotificationDispatcherPort {
-  private static outbox: Map<string, StoredNotification> = new Map();
-  private static seenIdempotencyKeys: Set<string> = new Set();
-
   public async enqueue(input: EnqueueNotificationInput): Promise<{ notificationId: UUID }> {
-    // Deduplication check: ignore duplicate webhook notifications
-    if (NotificationDispatcherImpl.seenIdempotencyKeys.has(input.idempotencyKey)) {
-      const existing = Array.from(NotificationDispatcherImpl.outbox.values()).find(
-        (n) => n.idempotencyKey === input.idempotencyKey,
-      );
-      if (existing) {
-        return { notificationId: existing.notificationId };
-      }
+    const state = RuntimeStateRepository.getState();
+
+    // Deduplication check: ignore duplicate webhook or retry notifications
+    const existing = state.notifications.find(
+      (n) => n.tenantId === input.tenantId && n.idempotencyKey === input.idempotencyKey,
+    );
+    if (existing) {
+      return { notificationId: existing.notificationId };
     }
 
     const notificationId = randomUUID();
-    NotificationDispatcherImpl.seenIdempotencyKeys.add(input.idempotencyKey);
-
-    const record: StoredNotification = {
+    const record: RuntimeNotificationRecord = {
       notificationId,
       tenantId: input.tenantId,
+      bookingId: input.bookingId,
       channel: input.channel,
       templateKey: input.templateKey,
       recipient: input.recipient,
       idempotencyKey: input.idempotencyKey,
       status: 'queued',
       payload: input.payload,
-      createdAt: new Date(),
+      createdAtIso: new Date().toISOString(),
     };
 
-    NotificationDispatcherImpl.outbox.set(notificationId, record);
+    state.notifications.unshift(record);
+    RuntimeStateRepository.persist();
+
     return { notificationId };
   }
 
   public async deliverQueuedBatch(limit = 50): Promise<{ sentCount: number; failedCount: number }> {
+    const state = RuntimeStateRepository.getState();
     let sentCount = 0;
-    let processed = 0;
 
-    for (const record of NotificationDispatcherImpl.outbox.values()) {
-      if (processed >= limit) break;
+    for (const record of state.notifications) {
+      if (sentCount >= limit) break;
       if (record.status === 'queued') {
         record.status = 'sent';
         sentCount += 1;
-        processed += 1;
       }
+    }
+
+    if (sentCount > 0) {
+      RuntimeStateRepository.persist();
     }
 
     return { sentCount, failedCount: 0 };
   }
 
-  public static getOutbox(): StoredNotification[] {
-    return Array.from(NotificationDispatcherImpl.outbox.values());
+  public static getOutbox(tenantId?: UUID): RuntimeNotificationRecord[] {
+    const state = RuntimeStateRepository.getState();
+    if (!tenantId) return state.notifications;
+    return state.notifications.filter((n) => n.tenantId === tenantId);
   }
 
   public static resetForTests(): void {
-    NotificationDispatcherImpl.outbox.clear();
-    NotificationDispatcherImpl.seenIdempotencyKeys.clear();
+    const state = RuntimeStateRepository.getState();
+    state.notifications = [];
   }
 }

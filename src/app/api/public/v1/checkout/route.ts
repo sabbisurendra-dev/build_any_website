@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
+import { assertRateLimit } from '@/lib/rate-limit';
+import { extractClientIp } from '@/modules/auth/resolve-actor';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 const checkoutBodySchema = z.object({
@@ -18,6 +20,7 @@ const bookingService = new BookingServiceImpl();
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    await assertRateLimit(extractClientIp(request), 'public:payment_checkout');
     const idempotencyKey = requireIdempotencyKey(request.headers.get('idempotency-key'));
     const json: unknown = await request.json();
     const parsed = checkoutBodySchema.safeParse(json);

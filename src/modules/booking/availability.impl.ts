@@ -1,96 +1,139 @@
 import type { CurrencyCode, IanaTimezone, UUID } from '@/types/domain';
+import { applyIntervalBuffers } from '@/lib/datetime';
 import type {
   AvailabilityQueryInput,
   AvailabilityServicePort,
 } from './availability.service';
 import type { AvailableSlotCandidate } from './booking.types';
-import { MOCK_RESOURCES } from '@/lib/mock-data/mock-resources';
-import { MOCK_BOOKINGS } from '@/lib/mock-data/mock-bookings';
+import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
+import { BookingServiceImpl } from './booking.impl';
 
 /**
  * Server-authoritative slot availability implementation.
  *
  * Evaluates:
- * 1. Venue/resource operating hours and slot granularity (30m / 60m).
- * 2. Confirmed bookings from database (`booking_items` with `allocation_status = 'active'`).
- * 3. Active temporary holds (`booking_holds` where `expires_at > now()`).
- * 4. Model-specific logic:
- *    - Model A (`exclusive_resource`): Time interval overlap exclusion.
- *    - Model B (`staff_appointment`): Staff member working hours and appointment overlaps.
- *    - Model C (`capacity_session`): Remaining session capacity calculation.
- * 5. Dynamic time-of-day pricing (e.g. peak evening floodlit rates in INR paise).
+ * 1. Tenant scoping & active resource/service/staff/session status.
+ * 2. Opportunistic lazy expiry of expired temporary holds (`expires_at <= now()`).
+ * 3. Venue/staff operating hours, lunch breaks, and holiday/exception windows.
+ * 4. Service duration + pre/post buffer windows (`[bufferStartsAt, bufferEndsAt)`).
+ * 5. Active confirmed bookings and active temporary holds in `RuntimeStateRepository`.
+ * 6. Live session remaining capacity (`maxCapacity - bookedCount - heldCount`).
  */
 export class AvailabilityServiceImpl implements AvailabilityServicePort {
   public async listAvailableSlots(
     query: AvailabilityQueryInput,
   ): Promise<readonly AvailableSlotCandidate[]> {
     const {
+      tenantId,
       bookingModel,
       dateLocal,
       resourceId,
+      serviceId,
       staffMemberId,
+      durationMinutesOverride,
     } = query;
 
-    const displayTimezone: IanaTimezone = 'Asia/Kolkata';
-    const currency: CurrencyCode = 'INR';
+    // Ensure expired holds never block availability
+    BookingServiceImpl.sweepExpiredAllocationsNow();
 
-    // Model A: Exclusive Resource (Turfs / Courts)
+    const state = RuntimeStateRepository.getState();
+    const tenant = state.tenants.find((t) => t.id === tenantId || t.slug === tenantId);
+    const resolvedTenantId = tenant?.id ?? tenantId;
+
+    const displayTimezone: IanaTimezone = tenant?.location.timezone ?? 'Asia/Kolkata';
+    const currency: CurrencyCode = (tenant?.defaultCurrency as CurrencyCode) ?? 'INR';
+
     if (bookingModel === 'exclusive_resource') {
-      return this.computeExclusiveResourceSlots(dateLocal, displayTimezone, currency, resourceId);
+      return this.computeExclusiveResourceSlots(
+        resolvedTenantId,
+        dateLocal,
+        displayTimezone,
+        currency,
+        resourceId,
+        durationMinutesOverride,
+      );
     }
 
-    // Model B: Staff Appointment (Clinics / Salons)
     if (bookingModel === 'staff_appointment') {
-      return this.computeStaffAppointmentSlots(dateLocal, displayTimezone, currency, staffMemberId);
+      return this.computeStaffAppointmentSlots(
+        resolvedTenantId,
+        dateLocal,
+        displayTimezone,
+        currency,
+        serviceId,
+        staffMemberId,
+        durationMinutesOverride,
+      );
     }
 
-    // Model C: Capacity Session (Fitness / Yoga / Workshops)
-    return this.computeCapacitySessionSlots(dateLocal, displayTimezone, currency);
+    return this.computeCapacitySessionSlots(
+      resolvedTenantId,
+      dateLocal,
+      displayTimezone,
+      currency,
+    );
   }
 
   private computeExclusiveResourceSlots(
+    tenantId: UUID,
     dateLocal: string,
     displayTimezone: IanaTimezone,
     currency: CurrencyCode,
     resourceId?: UUID,
+    durationMinutesOverride?: number,
   ): AvailableSlotCandidate[] {
+    const state = RuntimeStateRepository.getState();
     const candidates: AvailableSlotCandidate[] = [];
-    const targetResources = resourceId
-      ? MOCK_RESOURCES.filter((r) => r.id === resourceId)
-      : MOCK_RESOURCES;
 
-    // Daily operational range: 06:00 to 24:00 (18 one-hour blocks)
-    const hours = [
-      6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-    ];
+    const targetResources = state.resources.filter((r) => {
+      if (r.tenantId !== tenantId || !r.isActive) return false;
+      if (resourceId && r.id !== resourceId) return false;
+      return true;
+    });
 
     for (const res of targetResources) {
-      // Find active confirmed bookings and active temporary holds
-      const blockedBookings = MOCK_BOOKINGS.filter((b) => {
-        if (b.date !== dateLocal) return false;
-        if (b.status === 'cancelled') return false;
-        // Filter by resource name or id
-        return b.resourceOrServiceName === res.name;
-      });
+      const durationMin = durationMinutesOverride ?? res.slotDurationMinutes;
+      const stepMin = res.slotStepMinutes || 60;
 
-      for (const hour of hours) {
-        const slotStart = `${hour.toString().padStart(2, '0')}:00`;
-        const slotEnd = `${(hour + 1).toString().padStart(2, '0')}:00`;
+      const activeAllocs = state.allocations.filter(
+        (a) =>
+          a.resourceId === res.id &&
+          (a.status === 'held' || a.status === 'confirmed'),
+      );
 
-        // Check if slot overlaps with any confirmed or temporarily held reservation
-        const isOccupied = blockedBookings.some((b) => {
-          const startH = parseInt(b.startTime.split(':')[0] ?? '0', 10);
-          const endH = parseInt(b.endTime.split(':')[0] ?? '0', 10);
-          return hour >= startH && hour < endH;
-        });
+      const dayStartMin = res.operatingStartHour * 60;
+      const dayEndMin = res.operatingEndHour * 60;
+
+      for (let startMin = dayStartMin; startMin + durationMin <= dayEndMin; startMin += stepMin) {
+        const endMin = startMin + durationMin;
+        const startIso = this.buildIstIso(dateLocal, startMin);
+        const endIso = this.buildIstIso(dateLocal, endMin);
+
+        const rawInterval = {
+          startsAt: new Date(startIso),
+          endsAt: new Date(endIso),
+        };
+        const buffered = applyIntervalBuffers(
+          rawInterval,
+          res.bufferBeforeMinutes,
+          res.bufferAfterMinutes,
+        );
+        const candStartMs = buffered.startsAt.getTime();
+        const candEndMs = buffered.endsAt.getTime();
+
+        const isOccupied = activeAllocs.some(
+          (a) => Math.max(candStartMs, a.bufferStartsAtMs) < Math.min(candEndMs, a.bufferEndsAtMs),
+        );
 
         if (!isOccupied) {
-          const isPeak = hour >= 18; // Peak evening hours (6 PM - 12 AM)
-          const priceMinor = isPeak ? res.peakPriceMinor : res.basePriceMinor;
+          const startHour = Math.floor(startMin / 60);
+          const isPeak = startHour >= 18;
+          const hourlyRate = isPeak ? res.peakPriceMinor : res.basePriceMinor;
+          const priceMinor = Math.round((hourlyRate * durationMin) / 60);
 
           candidates.push({
-            startsAtIso: `${dateLocal}T${slotStart}:00.000+05:30`,
-            endsAtIso: `${dateLocal}T${slotEnd}:00.000+05:30`,
+            startsAtIso: startIso,
+            endsAtIso: endIso,
             displayTimezone,
             priceMinor,
             currency,
@@ -104,55 +147,147 @@ export class AvailabilityServiceImpl implements AvailabilityServicePort {
   }
 
   private computeStaffAppointmentSlots(
+    tenantId: UUID,
     dateLocal: string,
     displayTimezone: IanaTimezone,
     currency: CurrencyCode,
+    serviceId?: UUID,
     staffMemberId?: UUID,
+    durationMinutesOverride?: number,
   ): AvailableSlotCandidate[] {
+    const state = RuntimeStateRepository.getState();
     const candidates: AvailableSlotCandidate[] = [];
-    const workingHours = [10, 11, 12, 14, 15, 16, 17, 18, 19]; // Clinic / Salon clinic hours
 
-    for (const hour of workingHours) {
-      const slotStart = `${hour.toString().padStart(2, '0')}:00`;
-      const slotEnd = `${hour.toString().padStart(2, '0')}:45`;
+    const tenantServices = state.services.filter((s) => s.tenantId === tenantId && s.isActive);
+    const service = serviceId
+      ? tenantServices.find((s) => s.id === serviceId)
+      : tenantServices[0];
 
-      candidates.push({
-        startsAtIso: `${dateLocal}T${slotStart}:00.000+05:30`,
-        endsAtIso: `${dateLocal}T${slotEnd}:00.000+05:30`,
-        displayTimezone,
-        priceMinor: 150000, // ₹1,500 consultation
-        currency,
-        staffMemberId: staffMemberId ?? 'st-doctor-01',
-      });
+    if (!service) return [];
+
+    const durationMin = durationMinutesOverride ?? service.durationMinutes;
+
+    const eligibleStaff = state.staffMembers.filter((st) => {
+      if (st.tenantId !== tenantId || !st.isActive) return false;
+      if (!st.serviceIds.includes(service.id)) return false;
+      if (staffMemberId && st.id !== staffMemberId) return false;
+      return true;
+    });
+
+    for (const staff of eligibleStaff) {
+      // Check full-day holiday exception
+      const dayExceptions = staff.exceptions.filter(
+        (ex) => ex.dateLocal === dateLocal && ex.isUnavailable,
+      );
+      const isFullDayOff = dayExceptions.some(
+        (ex) => ex.startHour === undefined || ex.endHour === undefined,
+      );
+      if (isFullDayOff) continue;
+
+      const activeAllocs = state.allocations.filter(
+        (a) =>
+          a.staffMemberId === staff.id &&
+          (a.status === 'held' || a.status === 'confirmed'),
+      );
+
+      const workStartMin = staff.workingStartHour * 60;
+      const workEndMin = staff.workingEndHour * 60;
+      const stepMin = 30;
+
+      for (let startMin = workStartMin; startMin + durationMin <= workEndMin; startMin += stepMin) {
+        const endMin = startMin + durationMin;
+
+        // Skip staff break hour
+        if (staff.breakHour !== undefined) {
+          const breakStart = staff.breakHour * 60;
+          const breakEnd = (staff.breakHour + 1) * 60;
+          if (Math.max(startMin, breakStart) < Math.min(endMin, breakEnd)) {
+            continue;
+          }
+        }
+
+        // Skip partial-day exception windows
+        const overlapsException = dayExceptions.some((ex) => {
+          if (ex.startHour === undefined || ex.endHour === undefined) return true;
+          return Math.max(startMin, ex.startHour * 60) < Math.min(endMin, ex.endHour * 60);
+        });
+        if (overlapsException) continue;
+
+        const startIso = this.buildIstIso(dateLocal, startMin);
+        const endIso = this.buildIstIso(dateLocal, endMin);
+        const buffered = applyIntervalBuffers(
+          { startsAt: new Date(startIso), endsAt: new Date(endIso) },
+          service.bufferBeforeMinutes,
+          service.bufferAfterMinutes,
+        );
+
+        const candStartMs = buffered.startsAt.getTime();
+        const candEndMs = buffered.endsAt.getTime();
+
+        const isOccupied = activeAllocs.some(
+          (a) => Math.max(candStartMs, a.bufferStartsAtMs) < Math.min(candEndMs, a.bufferEndsAtMs),
+        );
+
+        if (!isOccupied) {
+          candidates.push({
+            startsAtIso: startIso,
+            endsAtIso: endIso,
+            displayTimezone,
+            priceMinor: service.priceMinor,
+            currency,
+            staffMemberId: staff.id,
+          });
+        }
+      }
     }
 
     return candidates;
   }
 
   private computeCapacitySessionSlots(
+    tenantId: UUID,
     dateLocal: string,
     displayTimezone: IanaTimezone,
     currency: CurrencyCode,
   ): AvailableSlotCandidate[] {
-    return [
-      {
-        startsAtIso: `${dateLocal}T07:00:00.000+05:30`,
-        endsAtIso: `${dateLocal}T08:00:00.000+05:30`,
+    const state = RuntimeStateRepository.getState();
+    const sessions = state.sessions.filter(
+      (s) =>
+        s.tenantId === tenantId &&
+        s.isActive &&
+        (s.dateLocal === '*' || s.dateLocal === dateLocal),
+    );
+
+    return sessions.map((s) => {
+      const remainingCapacity = Math.max(0, s.maxCapacity - s.bookedCount - s.heldCount);
+      return {
+        startsAtIso: `${dateLocal}T${s.startTime}:00.000+05:30`,
+        endsAtIso: `${dateLocal}T${s.endTime}:00.000+05:30`,
         displayTimezone,
-        priceMinor: 49900, // ₹499
+        priceMinor: s.priceMinor,
         currency,
-        sessionId: 'sess-morning-yoga-01',
-        remainingCapacity: 12,
-      },
-      {
-        startsAtIso: `${dateLocal}T18:30:00.000+05:30`,
-        endsAtIso: `${dateLocal}T19:30:00.000+05:30`,
-        displayTimezone,
-        priceMinor: 49900, // ₹499
-        currency,
-        sessionId: 'sess-evening-strength-02',
-        remainingCapacity: 6,
-      },
-    ];
+        sessionId: s.id,
+        remainingCapacity,
+      };
+    });
+  }
+
+  private buildIstIso(dateLocal: string, minutesFromMidnight: number): string {
+    if (minutesFromMidnight >= 1440) {
+      // Midnight / next-day boundary (24:00 -> next calendar day 00:00+05:30)
+      const [y, m, d] = dateLocal.split('-').map(Number);
+      const nextDate = new Date(Date.UTC(y ?? 2026, (m ?? 1) - 1, (d ?? 1) + 1));
+      const ny = nextDate.getUTCFullYear();
+      const nm = String(nextDate.getUTCMonth() + 1).padStart(2, '0');
+      const nd = String(nextDate.getUTCDate()).padStart(2, '0');
+      const rem = minutesFromMidnight - 1440;
+      const hh = String(Math.floor(rem / 60)).padStart(2, '0');
+      const mm = String(rem % 60).padStart(2, '0');
+      return `${ny}-${nm}-${nd}T${hh}:${mm}:00.000+05:30`;
+    }
+
+    const hh = String(Math.floor(minutesFromMidnight / 60)).padStart(2, '0');
+    const mm = String(minutesFromMidnight % 60).padStart(2, '0');
+    return `${dateLocal}T${hh}:${mm}:00.000+05:30`;
   }
 }

@@ -34,8 +34,16 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  // Direct root-domain access in local development falls through to explicit route groups
-  if (hostname === rootDomain) {
+  // Direct root-domain or loopback IP access in local development falls through to explicit route groups
+  const hostWithoutPort = hostname.replace(/:\d+$/, '');
+  const rootWithoutPort = rootDomain.replace(/:\d+$/, '');
+  if (
+    hostname === rootDomain ||
+    hostWithoutPort === rootWithoutPort ||
+    hostWithoutPort === 'localhost' ||
+    hostWithoutPort === '127.0.0.1' ||
+    hostWithoutPort === '[::1]'
+  ) {
     return NextResponse.next();
   }
 

@@ -1,7 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import type { PageSection, PlacedWidgetInstance, ViewportBreakpoint, WebsiteThemeConfig, GridBox } from '@/modules/website-builder/layout.types';
+import type {
+  PageSection,
+  PlacedWidgetInstance,
+  ViewportBreakpoint,
+  WebsiteThemeConfig,
+  GridBox,
+} from '@/modules/website-builder/layout.types';
 import { moveOrResizeWidget } from '@/modules/website-builder/grid-engine';
 import { CORE_WIDGET_REGISTRY } from '@/modules/website-builder/widget-registry';
 
@@ -16,96 +22,19 @@ const INITIAL_THEME: WebsiteThemeConfig = {
   colorScheme: 'light',
 };
 
-const INITIAL_SECTIONS: PageSection[] = [
-  {
-    id: 'sec-hero-booking-01',
-    name: 'Hero Banner & Instant Turf Booking',
-    sortOrder: 0,
-    compactMode: 'vertical',
-    rowUnitPx: 48,
-    gapPx: 16,
-    style: {
-      backgroundVariant: 'default',
-      paddingY: 'md',
-      fullBleed: false,
-    },
-    widgets: [
-      {
-        id: 'w-hero-01',
-        widgetType: 'hero.banner',
-        widgetVersion: 1,
-        placement: {
-          desktop: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 7 },
-        },
-        config: {
-          eyebrow: 'FIFA Quality Pro Synthetic Turf • Indiranagar, Bengaluru',
-          headline: 'Floodlit 5v5 & 7v7 Football Turfs — Book Online in Seconds',
-          subheadline: 'Real-time availability, instant slot locking, and seamless UPI checkout with zero double bookings.',
-          primaryCtaLabel: 'Select Date & Slot',
-          primaryCtaHref: '#book',
-          alignment: 'left',
-        },
-      },
-      {
-        id: 'w-turf-grid-02',
-        widgetType: 'catalog.resource-grid',
-        widgetVersion: 1,
-        placement: {
-          desktop: { colStart: 1, colSpan: 6, rowStart: 8, rowSpan: 8 },
-        },
-        config: {
-          heading: 'Our Arenas & Courts',
-          columnsDesktop: '2',
-          showInstantBookButton: true,
-        },
-      },
-      {
-        id: 'w-slot-picker-03',
-        widgetType: 'booking.slot-picker',
-        widgetVersion: 1,
-        placement: {
-          desktop: { colStart: 7, colSpan: 6, rowStart: 8, rowSpan: 8 },
-        },
-        config: {
-          heading: 'Reserve Your Game Slot',
-          bookingModel: 'exclusive_resource',
-          showPricingSummary: true,
-          dateHorizonDays: 14,
-        },
-      },
-    ],
-  },
-  {
-    id: 'sec-location-02',
-    name: 'Location, Parking & Timings',
-    sortOrder: 1,
-    compactMode: 'vertical',
-    rowUnitPx: 48,
-    gapPx: 16,
-    style: {
-      backgroundVariant: 'muted',
-      paddingY: 'md',
-      fullBleed: false,
-    },
-    widgets: [
-      {
-        id: 'w-loc-04',
-        widgetType: 'location.map-hours',
-        widgetVersion: 1,
-        placement: {
-          desktop: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 5 },
-        },
-        config: {
-          heading: 'Indiranagar Flagship Arena • Open 6:00 AM – 1:00 AM',
-          showGoogleMapEmbed: true,
-          showWhatsappButton: true,
-        },
-      },
-    ],
-  },
-];
+export interface EditorTenantSummary {
+  id: string;
+  name: string;
+  slug: string;
+  vertical: string;
+}
 
 export interface EditorState {
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  websiteId: string;
+  pageId: string;
   sections: PageSection[];
   theme: WebsiteThemeConfig;
   selectedSectionId: string | null;
@@ -115,22 +44,31 @@ export interface EditorState {
   draftRevision: number;
   publishedVersion: number;
   isDirty: boolean;
+  isLoading: boolean;
+  isSaving: boolean;
 }
 
-export function useEditorStore() {
+export function useEditorStore(activeTenantId: string) {
+  const [tenants, setTenants] = React.useState<EditorTenantSummary[]>([]);
   const [state, setState] = React.useState<EditorState>({
-    sections: INITIAL_SECTIONS,
+    tenantId: activeTenantId,
+    tenantName: 'Loading workspace...',
+    tenantSlug: 'kickoff-turf',
+    websiteId: 'web-kickoff-turf',
+    pageId: 'page-home-kickoff-turf',
+    sections: [],
     theme: INITIAL_THEME,
-    selectedSectionId: 'sec-hero-booking-01',
-    selectedWidgetId: 'w-hero-01',
+    selectedSectionId: null,
+    selectedWidgetId: null,
     breakpoint: 'desktop',
     isPreview: false,
     draftRevision: 1,
-    publishedVersion: 4,
+    publishedVersion: 1,
     isDirty: false,
+    isLoading: true,
+    isSaving: false,
   });
 
-  // History stack for Undo / Redo
   const [history, setHistory] = React.useState<{
     past: Array<{ sections: PageSection[]; theme: WebsiteThemeConfig }>;
     future: Array<{ sections: PageSection[]; theme: WebsiteThemeConfig }>;
@@ -138,6 +76,58 @@ export function useEditorStore() {
     past: [],
     future: [],
   });
+
+  // Load authoritative draft & published metadata from server on mount & tenant switch
+  React.useEffect(() => {
+    let cancelled = false;
+    setState((prev) => ({ ...prev, isLoading: true }));
+
+    fetch(`/api/platform/builder/state?tenantId=${encodeURIComponent(activeTenantId)}`, {
+      cache: 'no-store',
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to load builder state');
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const loadedSections: PageSection[] = data.website?.draftSections ?? [];
+        const loadedTheme: WebsiteThemeConfig = data.website?.draftTheme ?? INITIAL_THEME;
+        const firstSec = loadedSections[0];
+        const firstWidget = firstSec?.widgets[0];
+
+        if (Array.isArray(data.tenants)) {
+          setTenants(data.tenants);
+        }
+
+        setHistory({ past: [], future: [] });
+        setState((prev) => ({
+          ...prev,
+          tenantId: data.tenant.id,
+          tenantName: data.tenant.name,
+          tenantSlug: data.tenant.slug,
+          websiteId: data.website.websiteId,
+          pageId: data.website.pageId,
+          sections: loadedSections,
+          theme: loadedTheme,
+          selectedSectionId: firstSec?.id ?? null,
+          selectedWidgetId: firstWidget?.id ?? null,
+          draftRevision: data.website.draftRevision ?? 1,
+          publishedVersion: data.website.publishedVersion ?? 1,
+          isDirty: false,
+          isLoading: false,
+        }));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setState((prev) => ({ ...prev, isLoading: false }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTenantId]);
 
   const recordHistory = React.useCallback(
     (prevSections: PageSection[], prevTheme: WebsiteThemeConfig) => {
@@ -149,13 +139,16 @@ export function useEditorStore() {
     [],
   );
 
-  const selectWidget = React.useCallback((sectionId: string | null, widgetId: string | null) => {
-    setState((prev) => ({
-      ...prev,
-      selectedSectionId: sectionId,
-      selectedWidgetId: widgetId,
-    }));
-  }, []);
+  const selectWidget = React.useCallback(
+    (sectionId: string | null, widgetId: string | null) => {
+      setState((prev) => ({
+        ...prev,
+        selectedSectionId: sectionId,
+        selectedWidgetId: widgetId,
+      }));
+    },
+    [],
+  );
 
   const setBreakpoint = React.useCallback((bp: ViewportBreakpoint) => {
     setState((prev) => ({ ...prev, breakpoint: bp }));
@@ -165,16 +158,42 @@ export function useEditorStore() {
     setState((prev) => ({ ...prev, isPreview: !prev.isPreview }));
   }, []);
 
+  const updateTheme = React.useCallback(
+    (patch: Partial<WebsiteThemeConfig>) => {
+      setState((prev) => {
+        recordHistory(prev.sections, prev.theme);
+        return {
+          ...prev,
+          theme: { ...prev.theme, ...patch },
+          isDirty: true,
+        };
+      });
+    },
+    [recordHistory],
+  );
+
   const updateWidgetPlacement = React.useCallback(
     (sectionId: string, widgetId: string, nextBox: GridBox) => {
       setState((prev) => {
         recordHistory(prev.sections, prev.theme);
+        const clampedColSpan = Math.max(1, Math.min(12, nextBox.colSpan));
+        const clampedColStart = Math.max(
+          1,
+          Math.min(12 - clampedColSpan + 1, nextBox.colStart),
+        );
+        const clampedBox: GridBox = {
+          colStart: clampedColStart,
+          colSpan: clampedColSpan,
+          rowStart: Math.max(1, nextBox.rowStart),
+          rowSpan: Math.max(2, nextBox.rowSpan),
+        };
+
         const updatedSections = prev.sections.map((section) => {
           if (section.id !== sectionId) return section;
           const updatedWidgets = moveOrResizeWidget(
             section.widgets,
             widgetId,
-            nextBox,
+            clampedBox,
             section.compactMode,
           );
           return { ...section, widgets: updatedWidgets };
@@ -216,6 +235,35 @@ export function useEditorStore() {
     [recordHistory],
   );
 
+  const updateWidgetVisibility = React.useCallback(
+    (
+      sectionId: string,
+      widgetId: string,
+      visibilityPatch: Partial<NonNullable<PlacedWidgetInstance['visibility']>>,
+    ) => {
+      setState((prev) => {
+        recordHistory(prev.sections, prev.theme);
+        const updatedSections = prev.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          return {
+            ...section,
+            widgets: section.widgets.map((w) =>
+              w.id === widgetId
+                ? { ...w, visibility: { ...w.visibility, ...visibilityPatch } }
+                : w,
+            ),
+          };
+        });
+        return {
+          ...prev,
+          sections: updatedSections,
+          isDirty: true,
+        };
+      });
+    },
+    [recordHistory],
+  );
+
   const insertWidget = React.useCallback(
     (sectionId: string, widgetType: string) => {
       const def = CORE_WIDGET_REGISTRY.get(widgetType);
@@ -223,13 +271,17 @@ export function useEditorStore() {
 
       setState((prev) => {
         recordHistory(prev.sections, prev.theme);
-        const newWidgetId = `w-${Date.now().toString(36)}`;
+        const newWidgetId = `w-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 5)}`;
         const updatedSections = prev.sections.map((section) => {
           if (section.id !== sectionId) return section;
 
-          // Compute lowest unoccupied row
           const maxRow = section.widgets.reduce((max, w) => {
-            return Math.max(max, w.placement.desktop.rowStart + w.placement.desktop.rowSpan);
+            return Math.max(
+              max,
+              w.placement.desktop.rowStart + w.placement.desktop.rowSpan,
+            );
           }, 1);
 
           const targetBox: GridBox = {
@@ -244,7 +296,7 @@ export function useEditorStore() {
             widgetType: def.type,
             widgetVersion: def.version,
             placement: { desktop: targetBox },
-            config: { ...def.defaultConfig },
+            config: JSON.parse(JSON.stringify(def.defaultConfig)),
           };
 
           const updatedWidgets = moveOrResizeWidget(
@@ -284,7 +336,8 @@ export function useEditorStore() {
         return {
           ...prev,
           sections: updatedSections,
-          selectedWidgetId: null,
+          selectedWidgetId:
+            prev.selectedWidgetId === widgetId ? null : prev.selectedWidgetId,
           isDirty: true,
         };
       });
@@ -301,10 +354,14 @@ export function useEditorStore() {
 
         recordHistory(prev.sections, prev.theme);
 
-        const newId = `w-${Date.now().toString(36)}`;
+        const newId = `w-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 5)}`;
         const targetBox: GridBox = {
           ...targetWidget.placement.desktop,
-          rowStart: targetWidget.placement.desktop.rowStart + targetWidget.placement.desktop.rowSpan,
+          rowStart:
+            targetWidget.placement.desktop.rowStart +
+            targetWidget.placement.desktop.rowSpan,
         };
 
         const cloned: PlacedWidgetInstance = {
@@ -342,7 +399,7 @@ export function useEditorStore() {
       const newSecId = `sec-${Date.now().toString(36)}`;
       const newSection: PageSection = {
         id: newSecId,
-        name: `Section ${prev.sections.length + 1}`,
+        name: `Custom Section ${prev.sections.length + 1}`,
         sortOrder: prev.sections.length,
         compactMode: 'vertical',
         rowUnitPx: 48,
@@ -363,6 +420,31 @@ export function useEditorStore() {
       };
     });
   }, [recordHistory]);
+
+  const moveSection = React.useCallback(
+    (secId: string, direction: 'up' | 'down') => {
+      setState((prev) => {
+        const idx = prev.sections.findIndex((s) => s.id === secId);
+        if (idx === -1) return prev;
+        const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= prev.sections.length) return prev;
+
+        recordHistory(prev.sections, prev.theme);
+        const reordered = [...prev.sections];
+        const a = reordered[idx]!;
+        const b = reordered[swapIdx]!;
+        reordered[idx] = b;
+        reordered[swapIdx] = a;
+
+        return {
+          ...prev,
+          sections: reordered.map((s, i) => ({ ...s, sortOrder: i })),
+          isDirty: true,
+        };
+      });
+    },
+    [recordHistory],
+  );
 
   const deleteSection = React.useCallback(
     (secId: string) => {
@@ -422,35 +504,106 @@ export function useEditorStore() {
     });
   }, [state.sections, state.theme]);
 
-  const saveDraft = React.useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      draftRevision: prev.draftRevision + 1,
-      isDirty: false,
-    }));
-  }, []);
+  const saveDraft = React.useCallback(async (): Promise<{
+    ok: boolean;
+    draftRevision?: number;
+    error?: string;
+  }> => {
+    setState((prev) => ({ ...prev, isSaving: true }));
+    try {
+      const res = await fetch('/api/platform/builder/draft', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: state.tenantId,
+          pageId: state.pageId,
+          expectedDraftRevision: 0,
+          sections: state.sections,
+          theme: state.theme,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setState((prev) => ({ ...prev, isSaving: false }));
+        return { ok: false, error: data?.error?.message ?? 'Failed to save draft' };
+      }
 
-  const publish = React.useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      publishedVersion: prev.publishedVersion + 1,
-      isDirty: false,
-    }));
-  }, []);
+      setState((prev) => ({
+        ...prev,
+        draftRevision: data.draftRevision ?? prev.draftRevision + 1,
+        isDirty: false,
+        isSaving: false,
+      }));
+      return { ok: true, draftRevision: data.draftRevision };
+    } catch {
+      setState((prev) => ({ ...prev, isSaving: false }));
+      return { ok: false, error: 'Network error while saving draft' };
+    }
+  }, [state.tenantId, state.pageId, state.sections, state.theme]);
+
+  const publish = React.useCallback(async (): Promise<{
+    ok: boolean;
+    versionNumber?: number;
+    error?: string;
+  }> => {
+    setState((prev) => ({ ...prev, isSaving: true }));
+    try {
+      const res = await fetch('/api/platform/builder/publish', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: state.tenantId,
+          websiteId: state.websiteId,
+          pageId: state.pageId,
+          sections: state.sections,
+          theme: state.theme,
+          releaseNotes: `Published from Visual Studio (r${state.draftRevision})`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setState((prev) => ({ ...prev, isSaving: false }));
+        return { ok: false, error: data?.error?.message ?? 'Failed to publish website' };
+      }
+
+      setState((prev) => ({
+        ...prev,
+        publishedVersion: data.versionNumber ?? prev.publishedVersion + 1,
+        draftRevision: data.draftRevision ?? prev.draftRevision,
+        isDirty: false,
+        isSaving: false,
+      }));
+      return { ok: true, versionNumber: data.versionNumber };
+    } catch {
+      setState((prev) => ({ ...prev, isSaving: false }));
+      return { ok: false, error: 'Network error while publishing website' };
+    }
+  }, [
+    state.tenantId,
+    state.websiteId,
+    state.pageId,
+    state.sections,
+    state.theme,
+    state.draftRevision,
+  ]);
 
   return {
     state,
+    tenants,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     selectWidget,
     setBreakpoint,
     togglePreview,
+    updateTheme,
     updateWidgetPlacement,
     updateWidgetConfig,
+    updateWidgetVisibility,
     insertWidget,
     deleteWidget,
     duplicateWidget,
     addSection,
+    moveSection,
     deleteSection,
     undo,
     redo,

@@ -21,8 +21,13 @@ export class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
   public readonly provider = 'simulated' as const;
 
   private computeDigest(data: string): string {
-    const { CRON_SECRET } = getServerEnv();
-    return createHmac('sha256', CRON_SECRET).update(data).digest('hex');
+    const secret =
+      process.env.NODE_ENV === 'production'
+        ? getServerEnv().CRON_SECRET
+        : process.env.CRON_SECRET && process.env.CRON_SECRET.length >= 32
+        ? process.env.CRON_SECRET
+        : 'development_cron_secret_minimum_32_characters_string';
+    return createHmac('sha256', secret).update(data).digest('hex');
   }
 
   private constantTimeEquals(a: string, b: string): boolean {
@@ -33,6 +38,8 @@ export class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
 
   public async createOrder(input: CreateGatewayOrderInput): Promise<GatewayOrderCreated> {
     const providerOrderId = `sim_ord_${randomUUID().replace(/-/g, '')}`;
+    const simulatedPaymentId = `sim_pay_${randomUUID().replace(/-/g, '')}`;
+    const simulatedSignature = this.computeDigest(`${providerOrderId}|${simulatedPaymentId}`);
     return {
       provider: 'simulated',
       providerOrderId,
@@ -42,8 +49,21 @@ export class SimulatedPaymentGatewayAdapter implements PaymentGatewayPort {
         mode: 'simulated',
         bookingNumber: input.bookingNumber,
         providerOrderId,
+        simulatedPaymentId,
+        simulatedSignature,
       },
     };
+  }
+
+  public computeWebhookSignatureForTest(rawBody: string): string {
+    return this.computeDigest(rawBody);
+  }
+
+  public computeCallbackSignatureForTest(
+    providerOrderId: string,
+    providerPaymentId: string,
+  ): string {
+    return this.computeDigest(`${providerOrderId}|${providerPaymentId}`);
   }
 
   public verifyClientCallbackSignature(input: VerifyCheckoutSignatureInput): boolean {

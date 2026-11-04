@@ -1,5 +1,11 @@
+import { notFound } from 'next/navigation';
 import { PublicSiteLayout } from '@/components/layout/public/public-site-layout';
 import { PublicSiteView } from '@/components/booking-flow/public-site-view';
+import { WebsiteServiceImpl } from '@/modules/website-builder/website.impl';
+import { BookingServiceImpl } from '@/modules/booking/booking.impl';
+import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
+
+export const dynamic = 'force-dynamic';
 
 interface PublicSiteRouteProps {
   readonly params: Promise<{
@@ -11,42 +17,92 @@ interface PublicSiteRouteProps {
 export default async function PublicTenantSitePage({ params }: PublicSiteRouteProps) {
   const { siteKey } = await params;
 
-  // Tenant branding lookup
-  const isKickoffTurf = siteKey === 'kickoff-turf' || siteKey.includes('turf');
-  const businessName = isKickoffTurf ? 'Kickoff Football Arena' : `${siteKey.replace(/-/g, ' ').toUpperCase()}`;
-  const tagline = isKickoffTurf
-    ? 'FIFA Quality Pro 5v5 & 7v7 Floodlit Synthetic Turfs'
-    : 'Professional Online Appointment & Slot Booking';
+  BookingServiceImpl.sweepExpiredAllocationsNow();
+  const websiteService = new WebsiteServiceImpl();
+  const published = websiteService.getPublishedWebsiteBySiteKey(siteKey);
+
+  if (!published) {
+    notFound();
+  }
+
+  const { tenant, sections, theme, publishedVersion } = published;
+  const state = RuntimeStateRepository.getState();
+
+  const resources = state.resources.filter(
+    (r) => r.tenantId === tenant.id && r.isActive,
+  );
+  const services = state.services.filter(
+    (s) => s.tenantId === tenant.id && s.isActive,
+  );
+  const staffMembers = state.staffMembers
+    .filter((st) => st.tenantId === tenant.id && st.isActive)
+    .map((st) => ({
+      id: st.id,
+      displayName: st.displayName,
+      specialty: st.specialty,
+      serviceIds: st.serviceIds,
+      workingStartHour: st.workingStartHour,
+      workingEndHour: st.workingEndHour,
+    }));
+  const sessions = state.sessions
+    .filter((sess) => sess.tenantId === tenant.id && sess.isActive)
+    .map((sess) => ({
+      id: sess.id,
+      name: sess.name,
+      instructorName: sess.instructorName,
+      description: sess.description,
+      dateLocal: sess.dateLocal,
+      startTime: sess.startTime,
+      endTime: sess.endTime,
+      maxCapacity: sess.maxCapacity,
+      bookedCount: sess.bookedCount,
+      heldCount: sess.heldCount,
+      remainingCapacity: Math.max(
+        0,
+        sess.maxCapacity - sess.bookedCount - sess.heldCount,
+      ),
+      priceMinor: sess.priceMinor,
+    }));
+
+  const verticalTaglineMap: Record<string, string> = {
+    sports_turf: 'Floodlit Sports Arenas & Instant Online Slot Booking',
+    racquet_court: 'Championship Courts & Instant Slot Booking',
+    clinic_healthcare: 'Specialist Doctor Consultations & Online Appointments',
+    salon_beauty: 'Luxury Styling, Wellness & Stylist Appointments',
+    fitness_yoga: 'Group Fitness Batches, Yoga & Live Seat Reservation',
+    general_appointment: 'Professional Online Appointment & Slot Booking',
+  };
+
+  const tagline = verticalTaglineMap[tenant.vertical] ?? 'Online Slot Booking';
 
   return (
     <PublicSiteLayout
       headerProps={{
-        businessName,
+        businessName: tenant.name,
         tagline,
-        siteKey,
-        phone: '+91 98765 43210',
-        whatsappNumber: '+919876543210',
-        primaryCtaLabel: 'Book a Slot',
-        primaryCtaHref: '#courts',
+        siteKey: tenant.slug,
+        phone: tenant.location.phone,
+        whatsappNumber: tenant.location.phone.replace(/\s+/g, ''),
+        primaryCtaLabel: 'Book Now',
+        primaryCtaHref: '#book',
       }}
       footerProps={{
-        businessName,
+        businessName: tenant.name,
         tagline,
-        description:
-          'Bengaluru’s premier sports facility for 5v5 and 7v7 football and box cricket. High-performance synthetic turf, stadium floodlights, and instant online slot booking.',
+        description: `${tenant.name} (${tenant.location.city}) — real-time online slot availability, concurrency-protected booking holds, and instant digital confirmation.`,
         address: {
-          line1: '12th Main Road, HAL 2nd Stage, Indiranagar',
-          city: 'Bengaluru',
-          state: 'Karnataka',
+          line1: tenant.location.address,
+          city: tenant.location.city,
+          state: tenant.location.state,
           postalCode: '560038',
           googleMapsUrl: 'https://maps.google.com',
         },
         contact: {
-          phone: '+91 98765 43210',
-          email: 'bookings@kickoffturf.in',
-          whatsappNumber: '+919876543210',
+          phone: tenant.location.phone,
+          email: `bookings@${tenant.slug}.in`,
+          whatsappNumber: tenant.location.phone.replace(/\s+/g, ''),
         },
-        operatingHoursText: 'Mon – Sun: 6:00 AM – 1:00 AM',
+        operatingHoursText: 'Open Daily • Live Online Availability',
         socialLinks: {
           instagram: 'https://instagram.com',
           facebook: 'https://facebook.com',
@@ -56,9 +112,21 @@ export default async function PublicTenantSitePage({ params }: PublicSiteRoutePr
       }}
     >
       <PublicSiteView
-        siteKey={siteKey}
-        businessName={businessName}
+        tenantId={tenant.id}
+        siteKey={tenant.slug}
+        businessName={tenant.name}
+        vertical={tenant.vertical}
         tagline={tagline}
+        locationLabel={`${tenant.location.address}, ${tenant.location.city}`}
+        publishedVersion={publishedVersion}
+        sections={sections}
+        theme={theme}
+        initialCatalog={{
+          resources,
+          services,
+          staffMembers,
+          sessions,
+        }}
       />
     </PublicSiteLayout>
   );

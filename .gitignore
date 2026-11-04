@@ -17,6 +17,9 @@ dist/
 
 # Testing & coverage
 coverage/
+test-results/
+playwright-report/
+.runtime-state.json
 
 # TypeScript & linting caches
 *.tsbuildinfo
