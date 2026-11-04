@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Environment variables (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Testing & coverage
+coverage/
+
+# TypeScript & linting caches
+*.tsbuildinfo
+next-env.d.ts
+.eslintcache
+
+# OS & editor artifacts
+.DS_Store
+*.pem
+.vercel/
+.supabase/
