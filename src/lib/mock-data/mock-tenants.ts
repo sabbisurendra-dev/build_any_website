@@ -168,4 +168,32 @@ export const MOCK_TENANTS: MockTenant[] = [
     createdAt: '2026-10-28T08:30:00Z',
     onboardingTimeHours: 19,
   },
+  {
+    id: 't-demo-01',
+    name: 'Velocity Sports Arena & Turf Club',
+    slug: 'demo-booking',
+    vertical: 'sports_turf',
+    status: 'active',
+    defaultCurrency: 'INR',
+    plan: 'pro',
+    domain: 'demo-booking.localhost:3000',
+    customDomain: 'velocityarena.in',
+    websiteStatus: 'published',
+    publishedVersion: 1,
+    location: {
+      name: 'Velocity Arena Flagship Hub',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      address: 'Plot 42, Outer Ring Road, Near Marathahalli Tech Park',
+      phone: '+91 98450 99887',
+      timezone: 'Asia/Kolkata',
+    },
+    stats: {
+      totalBookings: 184,
+      monthlyRevenueMinor: 27600000, // ₹2,76,000
+      utilizationRate: 84,
+    },
+    createdAt: '2026-11-01T09:00:00Z',
+    onboardingTimeHours: 12,
+  },
 ];
