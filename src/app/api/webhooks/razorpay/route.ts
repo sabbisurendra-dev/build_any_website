@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { RazorpayGatewayAdapter } from '@/modules/payments/razorpay.adapter';
+import { PaymentWebhookProcessorImpl } from '@/modules/payments/webhook.impl';
+import { AppError } from '@/lib/errors';
+
+const webhookProcessor = new PaymentWebhookProcessorImpl();
 
 /**
  * Razorpay Webhook Endpoint (`POST /api/webhooks/razorpay`).
@@ -10,10 +13,10 @@ import { RazorpayGatewayAdapter } from '@/modules/payments/razorpay.adapter';
  * 3. Uses `x-razorpay-event-id` for idempotent deduplication in `payment_webhook_events`.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const signature = request.headers.get('x-razorpay-signature') ?? '';
-  const eventId = request.headers.get('x-razorpay-event-id') ?? '';
+  const signatureHeader = request.headers.get('x-razorpay-signature') ?? '';
+  const providerEventId = request.headers.get('x-razorpay-event-id') ?? '';
 
-  if (!signature || !eventId) {
+  if (!signatureHeader || !providerEventId) {
     return NextResponse.json(
       { error: { code: 'PAYMENT_SIGNATURE_INVALID', message: 'Missing webhook headers.' } },
       { status: 401 },
@@ -21,14 +24,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const rawBody = await request.text();
-  const gateway = new RazorpayGatewayAdapter();
 
-  if (!gateway.verifyWebhookSignature(rawBody, signature)) {
+  try {
+    const result = await webhookProcessor.processIncomingWebhook({
+      provider: 'razorpay',
+      providerEventId,
+      signatureHeader,
+      rawBody,
+    });
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: error.message } },
+        { status: error.httpStatus },
+      );
+    }
+
     return NextResponse.json(
-      { error: { code: 'PAYMENT_SIGNATURE_INVALID', message: 'Invalid webhook signature.' } },
-      { status: 401 },
+      { error: { code: 'INTERNAL_ERROR', message: 'Failed to process webhook.' } },
+      { status: 500 },
     );
   }
-
-  return NextResponse.json({ received: true, eventId }, { status: 200 });
 }

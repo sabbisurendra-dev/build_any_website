@@ -1,13 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerEnv } from '@/lib/env';
+import { BookingServiceImpl } from '@/modules/booking/booking.impl';
+
+const bookingService = new BookingServiceImpl();
 
 /**
  * Scheduled Housekeeping Endpoint (`POST /api/internal/cron/expire-holds`).
  * Sweeps expired `booking_holds` (`expires_at <= now()`), releasing `booking_items`
  * and decrementing `booking_sessions.held_count`.
- * Note: Real-time booking requests ALSO perform lazy expiry inside their own DB
- * transactions so slot availability never depends solely on cron frequency.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { CRON_SECRET } = getServerEnv();
@@ -20,5 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED' } }, { status: 401 });
   }
 
-  return NextResponse.json({ ok: true, releasedCount: 0 });
+  const { releasedCount } = await bookingService.sweepExpiredHolds();
+
+  return NextResponse.json({ ok: true, releasedCount });
 }
