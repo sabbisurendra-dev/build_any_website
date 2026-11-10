@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration: 0001_universal_commerce_foundation.sql
+-- Migration: 0002_universal_commerce_foundation.sql
 -- Purpose: Universal Commerce, Inventory, Fulfilment, Subscriptions &
 --          Entitlement Engine + Master Projection View (v_universal_commerce_master)
 -- =============================================================================
@@ -12,27 +12,27 @@ ALTER TABLE IF EXISTS inventory_items
     quantity_on_hand >= 0
     AND quantity_reserved >= 0
     AND (allow_backorder = true OR quantity_on_hand >= quantity_reserved)
-  );
+  );--> statement-breakpoint
 
 -- 2. Entitlement Permission Window & Usage Bounds Invariants
 ALTER TABLE IF EXISTS entitlements
   ADD CONSTRAINT chk_entitlements_valid_window
-  CHECK (valid_until IS NULL OR valid_until > valid_from);
+  CHECK (valid_until IS NULL OR valid_until > valid_from);--> statement-breakpoint
 
 ALTER TABLE IF EXISTS entitlements
   ADD CONSTRAINT chk_entitlements_usage_bounds
   CHECK (
     consumed_usage_count >= 0
     AND (max_usage_count IS NULL OR consumed_usage_count <= max_usage_count)
-  );
+  );--> statement-breakpoint
 
 -- 3. Subscription Period Invariant
 ALTER TABLE IF EXISTS customer_subscriptions
   ADD CONSTRAINT chk_customer_subscriptions_period_bounds
-  CHECK (current_period_end > current_period_start);
+  CHECK (current_period_end > current_period_start);--> statement-breakpoint
 
 -- 4. Master Data Table Projection View (v_universal_commerce_master)
--- Projects the normalized tables into the exact flat Master Data Table structure:
+-- Projects normalized tables into the exact flat Master Data Table structure:
 -- Entity | Sub_entity | Domain | Category | Flag_1 | Flag_2 | Item_name |
 -- Permission_timeslot_start | Permission_timeslot_end | Status
 CREATE OR REPLACE VIEW v_universal_commerce_master AS
@@ -70,4 +70,4 @@ LEFT JOIN categories cat ON cat.id = ci.category_id
 LEFT JOIN websites w ON w.tenant_id = t.id
 LEFT JOIN website_domains wd ON wd.website_id = w.id AND wd.is_primary = true
 LEFT JOIN inventory_items inv ON inv.catalogue_item_id = ci.id
-LEFT JOIN entitlements ent ON ent.catalogue_item_id = ci.id;
+LEFT JOIN entitlements ent ON ent.catalogue_item_id = ci.id;--> statement-breakpoint

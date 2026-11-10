@@ -21,7 +21,8 @@ export function getDb(): AppDatabase {
   }
 
   const env = getServerEnv();
-  const queryClient = postgres(env.DATABASE_URL, {
+  const connectionString = env.APP_RUNTIME_DATABASE_URL || env.DATABASE_URL;
+  const queryClient = postgres(connectionString, {
     prepare: false,
     max: env.NODE_ENV === 'production' ? 10 : 5,
     idle_timeout: 20,

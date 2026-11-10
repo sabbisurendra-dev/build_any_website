@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts'],
     globals: false,
     env: {
       NEXT_PUBLIC_SUPABASE_URL: 'https://test-project.supabase.co',
