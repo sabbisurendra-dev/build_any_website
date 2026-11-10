@@ -644,11 +644,57 @@ export class PostgresBookingRepository implements BookingRepositoryPort {
     await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`);
 
-      await tx
+      const [existingBooking] = await tx
+        .select()
+        .from(bookings)
+        .where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, tenantId)))
+        .limit(1);
+
+      if (!existingBooking) {
+        throw new AppError('NOT_FOUND', 'Booking record not found.', 404);
+      }
+
+      // Idempotent return if already confirmed
+      if (existingBooking.status === 'confirmed') {
+        return;
+      }
+
+      // Step a: Mark payment 'captured'
+      if (paymentDetails.paymentId) {
+        await tx
+          .update(payments)
+          .set({ status: 'captured', verifiedAt: new Date() })
+          .where(and(eq(payments.id, paymentDetails.paymentId), eq(payments.tenantId, tenantId)));
+      } else {
+        await tx
+          .update(payments)
+          .set({ status: 'captured', verifiedAt: new Date() })
+          .where(and(eq(payments.bookingId, bookingId), eq(payments.tenantId, tenantId)));
+      }
+
+      // Step b: Transition booking allocation_status from 'active' to 'consumed'
+      const updatedItems = await tx
         .update(bookingItems)
         .set({ allocationStatus: 'consumed' })
-        .where(eq(bookingItems.bookingId, bookingId));
+        .where(
+          and(
+            eq(bookingItems.bookingId, bookingId),
+            eq(bookingItems.allocationStatus, 'active'),
+          ),
+        )
+        .returning();
 
+      if (updatedItems.length === 0) {
+        throw new HoldExpiredError('Booking hold expired or slot was already released.');
+      }
+
+      // Convert hold status
+      await tx
+        .update(bookingHolds)
+        .set({ status: 'converted' })
+        .where(and(eq(bookingHolds.bookingId, bookingId), eq(bookingHolds.status, 'active')));
+
+      // Step c: Update booking status to confirmed & paid
       await tx
         .update(bookings)
         .set({
@@ -659,7 +705,7 @@ export class PostgresBookingRepository implements BookingRepositoryPort {
         })
         .where(eq(bookings.id, bookingId));
 
-      // Outbox event in same transaction
+      // Step d: Insert outbox event for notifications in same transaction
       await tx.insert(outboxEvents).values({
         id: randomUUID(),
         tenantId,
@@ -668,6 +714,7 @@ export class PostgresBookingRepository implements BookingRepositoryPort {
         aggregateId: bookingId,
         payload: {
           bookingId,
+          bookingNumber: existingBooking.bookingNumber,
           paymentMethod: paymentDetails.paymentMethod ?? 'upi',
           confirmedAtIso: new Date().toISOString(),
         },

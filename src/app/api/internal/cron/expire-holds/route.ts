@@ -1,14 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getServerEnv } from '@/lib/env';
-import { BookingServiceImpl } from '@/modules/booking/booking.impl';
+import { HoldExpirationWorker } from '@/modules/booking/hold-expiration.worker';
 
-const bookingService = new BookingServiceImpl();
+const holdExpirationWorker = new HoldExpirationWorker();
 
 /**
  * Scheduled Housekeeping Endpoint (`POST /api/internal/cron/expire-holds`).
- * Sweeps expired `booking_holds` (`expires_at <= now()`), releasing `booking_items`
- * and decrementing `booking_sessions.held_count`.
+ * Sweeps expired `booking_holds` and `inventory_reservations`, releasing allocations
+ * and updating capacity counters.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { CRON_SECRET } = getServerEnv();
@@ -21,7 +21,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED' } }, { status: 401 });
   }
 
-  const { releasedCount } = await bookingService.sweepExpiredHolds();
+  const result = await holdExpirationWorker.sweepExpiredHolds();
+  const releasedCount = result.releasedHoldsCount + result.releasedAllocationsCount + result.releasedInventoryCount;
 
   return NextResponse.json({ ok: true, releasedCount });
 }

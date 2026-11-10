@@ -1,8 +1,8 @@
 # Hardening Programme Progress Tracker
 
 **Repository:** `sabbisurendra-dev/build_any_website`  
-**Current Active Branch:** `feat/postgres-repositories`  
-**Base Commit:** `645d447` (on `feat/db-foundation`)  
+**Current Active Branch:** `feat/payment-saga`  
+**Base Commit:** `9c337f8` (on `feat/postgres-repositories`)  
 **Started At:** 2026-11-10T23:58:00+05:30  
 
 ---
@@ -13,8 +13,8 @@
 |---|---|---|---|---|---|---|
 | **Phase 1** | Security Hotfix | `fix/security-hotfix` | **COMPLETED** | `5b11f20` | 2026-11-11 | None. All 5 findings verified, fixed, and tested (59/59 tests green). Approved by Founder. |
 | **Phase 2** | Database Foundation | `feat/db-foundation` | **COMPLETED** | `645d447` | 2026-11-11 | Clean Drizzle migrations, live row GiST exclusions, RLS on all 43 tenant tables, app_runtime role, PgBouncer transaction-scoped set_config, docker-compose.test.yml & integration test suite. Approved by Founder. |
-| **Phase 3** | Postgres Repositories | `feat/postgres-repositories` | **AWAITING_FOUNDER** | `e0d8d94` | 2026-11-11 | Replaced runtime memory maps with Postgres/Drizzle repositories (BookingRepositoryPort, CommerceRepositoryPort, PostgresBookingRepository, PostgresCommerceRepository, OutboxService), atomic checkout saga, GiST conflict catch -> 409 SlotUnavailableError, transactional outbox pattern, and comprehensive error tests (76/76 tests green). |
-| **Phase 4** | Payments & Checkout Saga | `feat/payment-saga` | **NOT_STARTED** | — | — | Awaiting Founder approval of Phase 3. |
+| **Phase 3** | Postgres Repositories | `feat/postgres-repositories` | **COMPLETED** | `9c337f8` | 2026-11-11 | Replaced runtime memory maps with Postgres/Drizzle repositories (BookingRepositoryPort, CommerceRepositoryPort, PostgresBookingRepository, PostgresCommerceRepository, OutboxService), atomic checkout saga, GiST conflict catch -> 409 SlotUnavailableError, transactional outbox pattern, and comprehensive error tests (76/76 tests green). Approved by Founder. |
+| **Phase 4** | Payments & Checkout Saga | `feat/payment-saga` | **AWAITING_FOUNDER** | Pending commit | 2026-11-11 | Real HMAC-SHA256 signature verification (Razorpay & Stripe), mock payments gated by ENABLE_MOCK_PAYMENTS, webhook idempotency via payment_webhook_events deduplication, atomic two-phase commit saga with automatic rollback on expired holds, and hold expiration worker protected by CRON_SECRET (85/85 tests green). |
 | **Phase 5** | Real, Small, Separate AI-COS | `feat/aicos-real-loop` | **NOT_STARTED** | — | — | Awaiting Founder approval of Phase 4 & Phase 5 Design Gate. |
 
 ---
@@ -78,9 +78,39 @@
 
 ---
 
+## Phase 4 Deliverables & Verification
+- `src/lib/env.ts`: Added `ENABLE_MOCK_PAYMENTS`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and added `'stripe'` to supported payment provider enum.
+- `src/modules/payments/stripe.adapter.ts`: Constant-time HMAC-SHA256 signature verification over Stripe webhook headers (`t=timestamp,v1=signature`) with 5-minute replay attack window check.
+- `src/modules/payments/simulated.adapter.ts`: Enforced `assertMockPaymentsAllowed()` so simulated payments are strictly disabled in production unless `ENABLE_MOCK_PAYMENTS=true`.
+- `src/modules/payments/webhook.impl.ts`: Webhook processor verifying cryptographic HMAC signatures prior to JSON parsing, with idempotent deduplication via `payment_webhook_events` table and memory state.
+- `src/app/api/webhooks/stripe/route.ts`: New Stripe webhook route handler (`POST /api/webhooks/stripe`).
+- `src/modules/booking/booking.impl.ts`: Wired `StripeGatewayAdapter` and ensured cryptographic verification executes prior to any state transition.
+- `src/modules/booking/postgres-booking.repository.ts`: Full two-phase commit saga for `confirmBooking`:
+  - Step a: Mark payment `captured`.
+  - Step b: Transition booking items to `consumed` (atomically checking active hold; rolls back with `HoldExpiredError` if expired).
+  - Step c: Convert hold status to `converted`, update booking to confirmed & paid.
+  - Step d: Insert `booking.confirmed` outbox event in the same transaction.
+  - Idempotent on redeliveries.
+- `src/modules/booking/hold-expiration.worker.ts`: Background worker executing atomic hold expiration:
+  - Sweeps expired `booking_holds` and releases associated `booking_items` (`allocation_status = 'released'`).
+  - Decrements `held_count` on capacity `booking_sessions`.
+  - Sweeps expired `inventory_reservations` and decrements `quantity_reserved` on `inventory_items`.
+  - Emits `booking.hold_expired` and `inventory.reservation_expired` outbox events.
+- `src/app/api/cron/expire-holds/route.ts`: Scheduled cron route (`POST` and `GET /api/cron/expire-holds`) guarded by `CRON_SECRET` Bearer token via constant-time comparison.
+- `src/app/api/internal/cron/expire-holds/route.ts`: Updated to delegate to `HoldExpirationWorker` preserving existing response shape `{ ok: true, releasedCount }`.
+- `tests/unit/payment-saga.test.ts`: 9 unit tests verifying HMAC verification, mock payment gating, webhook deduplication, atomic saga rollbacks, and cron authorization.
+- **Verification Commands:**
+  - `npx tsc --noEmit` -> PASS (0 errors)
+  - `pnpm lint` -> PASS (0 problems)
+  - `npx vitest run` -> PASS (85/85 unit tests passing in 12 files)
+  - `npx vitest run --config vitest.integration.config.ts` -> PASS (2/2 integration tests passing in 1 file)
+
+---
+
 ## Session Log
 
 - **2026-11-10:** Hardening programme initialized from base commit `2acc195`. Branch `fix/security-hotfix` created. Phase 1 started.
 - **2026-11-11:** Phase 1 implementation completed. All 5 findings confirmed and fixed. 10 new security sweep tests created and passing alongside all 49 existing tests. Phase 1 marked AWAITING_FOUNDER.
 - **2026-11-11:** Founder approved Phase 1 (`APPROVED PHASE 1`). Branch `feat/db-foundation` created. Phase 2 database foundation implemented: clean Drizzle migrations, live row GiST exclusion, universal commerce constraints, RLS on all 43 tenant tables with `app_runtime` non-superuser role, transaction-scoped PgBouncer context, and unit/integration test harnesses. Phase 2 marked AWAITING_FOUNDER.
 - **2026-11-11:** Founder approved Phase 2 (`APPROVED PHASE 2`). Branch `feat/postgres-repositories` created. Phase 3 Postgres repositories implemented: abstract repository ports, Postgres & in-memory adapters, transactional booking holds with GiST 409 translation, transactional multi-engine checkout with atomic inventory holds, transactional outbox pattern, and error suite (76/76 tests green). Phase 3 marked AWAITING_FOUNDER.
+- **2026-11-11:** Founder approved Phase 3 (`APPROVED PHASE 3`). Branch `feat/payment-saga` created. Phase 4 Payments & Checkout Saga implemented: real HMAC verification (Razorpay & Stripe), mock payments gated by `ENABLE_MOCK_PAYMENTS`, webhook deduplication, atomic confirmation saga with automatic rollback on expired holds, hold expiration worker guarded by `CRON_SECRET`, and payment saga test suite (85/85 unit tests green). Phase 4 marked AWAITING_FOUNDER.

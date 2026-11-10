@@ -19,6 +19,7 @@ import type {
 import type { BookingServicePort } from './booking.service';
 import { SimulatedPaymentGatewayAdapter } from '@/modules/payments/simulated.adapter';
 import { RazorpayGatewayAdapter } from '@/modules/payments/razorpay.adapter';
+import { StripeGatewayAdapter } from '@/modules/payments/stripe.adapter';
 import { NotificationDispatcherImpl } from '@/modules/notifications/notification.impl';
 import {
   RuntimeStateRepository,
@@ -101,6 +102,7 @@ export class BookingServiceImpl implements BookingServicePort {
 
   private simulatedGateway = new SimulatedPaymentGatewayAdapter();
   private razorpayGateway = new RazorpayGatewayAdapter();
+  private stripeGateway = new StripeGatewayAdapter();
   private notifications = new NotificationDispatcherImpl();
   private repository: BookingRepositoryPort;
 
@@ -676,6 +678,12 @@ export class BookingServiceImpl implements BookingServicePort {
     const isValidSig =
       payment.provider === 'razorpay'
         ? this.razorpayGateway.verifyClientCallbackSignature({
+            providerOrderId: params.providerOrderId,
+            providerPaymentId: params.providerPaymentId,
+            providerSignature: params.providerSignature,
+          })
+        : payment.provider === 'stripe'
+        ? this.stripeGateway.verifyClientCallbackSignature({
             providerOrderId: params.providerOrderId,
             providerPaymentId: params.providerPaymentId,
             providerSignature: params.providerSignature,
