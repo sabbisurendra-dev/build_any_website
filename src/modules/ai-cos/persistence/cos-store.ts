@@ -57,8 +57,6 @@ function getCosStateFilePath(): string {
   return resolve(process.cwd(), '.aicos-runtime-state.json');
 }
 
-const COS_STATE_FILE_PATH = getCosStateFilePath();
-
 declare global {
   var __aicosRuntimeSnapshot: CosRuntimeSnapshot | undefined;
   var __aicosRuntimeMtimeMs: number | undefined;
