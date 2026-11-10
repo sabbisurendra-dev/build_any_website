@@ -23,6 +23,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import type { BookingModel } from '@/types/domain';
+import type {
+  MasterDataTableRow,
+  RuntimeCatalogueItem,
+} from '@/modules/commerce/commerce.types';
 import { useToast } from '@/components/ui/toast';
 
 export interface PublicCatalogPayload {
@@ -66,6 +70,15 @@ export interface PublicCatalogPayload {
     remainingCapacity: number;
     priceMinor: number;
   }>;
+  catalogueItems?: Array<
+    RuntimeCatalogueItem & {
+      stockOnHand: number | null;
+      stockReserved: number | null;
+      stockAvailable: number | null;
+      derivedStatus: 'dormant' | 'unavailable' | 'available' | 'sold' | 'ready_to_upgrade';
+    }
+  >;
+  masterProjection?: MasterDataTableRow[];
 }
 
 interface LiveSlotItem {

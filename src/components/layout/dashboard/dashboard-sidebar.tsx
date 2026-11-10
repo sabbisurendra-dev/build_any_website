@@ -7,6 +7,7 @@ import {
   Home,
   Calendar,
   Layers,
+  Package,
   Landmark,
   Users,
   Contact2,
@@ -55,6 +56,12 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     title: 'Services & Menu',
     href: '/dashboard/services',
     icon: Layers,
+  },
+  {
+    title: 'Inventory & Entitlements',
+    href: '/dashboard/inventory',
+    icon: Package,
+    badge: 'Universal',
   },
   {
     title: 'Resources & Courts',

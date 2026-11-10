@@ -15,7 +15,11 @@ export type WidgetDataRequirement =
   | 'resources_catalog'
   | 'services_catalog'
   | 'staff_catalog'
-  | 'live_booking_engine';
+  | 'live_booking_engine'
+  | 'universal_inventory'
+  | 'digital_courses'
+  | 'subscription_plans'
+  | 'master_ledger';
 
 export interface InspectorFieldDescriptor {
   readonly name: string;
@@ -99,6 +103,57 @@ export const composableTimeSlotsSchema = z.object({
   heading: z.string().min(1).max(100).default('Available Time Slots'),
   showRemainingCapacity: z.boolean().default(true),
   showSlotPricing: z.boolean().default(true),
+});
+
+export const universalInventorySlotSchema = z.object({
+  heading: z
+    .string()
+    .min(1)
+    .max(120)
+    .default('Live Inventory & Instant Order Slot'),
+  filterItemType: z
+    .enum([
+      'all',
+      'physical_product',
+      'bookable_resource',
+      'service_appointment',
+      'capacity_session',
+      'digital_content',
+      'subscription_plan',
+    ])
+    .default('all'),
+  displayStyle: z.enum(['cards_grid', 'compact_list', 'master_table']).default('cards_grid'),
+  showLiveStockBadge: z.boolean().default(true),
+  enableMixedCart: z.boolean().default(true),
+});
+
+export const courseCatalogSlotSchema = z.object({
+  heading: z
+    .string()
+    .min(1)
+    .max(120)
+    .default('Digital Courses & Time-Limited Content (90-Day Access)'),
+  showDurationBadge: z.boolean().default(true),
+  showUpgradeOption: z.boolean().default(true),
+});
+
+export const subscriptionPlansSlotSchema = z.object({
+  heading: z
+    .string()
+    .min(1)
+    .max(120)
+    .default('Recurring Memberships & Entitlement Plans'),
+  highlightReadyToUpgrade: z.boolean().default(true),
+});
+
+export const masterLedgerSlotSchema = z.object({
+  heading: z
+    .string()
+    .min(1)
+    .max(120)
+    .default('Universal Master Inventory & Permission Timeslot Matrix'),
+  showFlags: z.boolean().default(true),
+  showPermissionWindow: z.boolean().default(true),
 });
 
 export const CORE_WIDGET_REGISTRY: ReadonlyMap<string, WidgetRegistryDefinition> = new Map<
@@ -312,6 +367,142 @@ export const CORE_WIDGET_REGISTRY: ReadonlyMap<string, WidgetRegistryDefinition>
       inspectorFields: [
         { name: 'heading', label: 'Heading', control: 'text' },
         { name: 'showSlotPricing', label: 'Show Slot Price', control: 'toggle' },
+      ],
+    },
+  ],
+  [
+    'commerce.inventory-slot',
+    {
+      type: 'commerce.inventory-slot',
+      name: 'Universal Inventory Slot (Any Item / Right)',
+      category: 'catalog',
+      version: 1,
+      sizing: {
+        defaultColSpan: 6,
+        defaultRowSpan: 8,
+        minColSpan: 3,
+        maxColSpan: 12,
+        minRowSpan: 5,
+      },
+      dataRequirement: 'universal_inventory',
+      configSchema: universalInventorySlotSchema,
+      defaultConfig: {
+        heading: 'Live Inventory & Instant Order Slot',
+        filterItemType: 'all',
+        displayStyle: 'cards_grid',
+        showLiveStockBadge: true,
+        enableMixedCart: true,
+      },
+      inspectorFields: [
+        { name: 'heading', label: 'Slot Heading', control: 'text' },
+        {
+          name: 'filterItemType',
+          label: 'Inventory Filter',
+          control: 'select',
+          options: [
+            { label: 'All Offerings (Products + Slots + Courses)', value: 'all' },
+            { label: 'Physical Products (Milk, Laptop, Gear)', value: 'physical_product' },
+            { label: 'Exclusive Resources (Cricket Turf, Court)', value: 'bookable_resource' },
+            { label: 'Appointments (Doctor, Salon)', value: 'service_appointment' },
+            { label: 'Capacity Sessions (20-Seat Yoga Class)', value: 'capacity_session' },
+            { label: 'Digital Content (90-Day Courses)', value: 'digital_content' },
+            { label: 'Recurring Subscriptions & Passes', value: 'subscription_plan' },
+          ],
+        },
+        {
+          name: 'displayStyle',
+          label: 'Slot Layout Style',
+          control: 'select',
+          options: [
+            { label: 'Adaptive Cards Grid (@container)', value: 'cards_grid' },
+            { label: 'Compact Single-Slot Shelf', value: 'compact_list' },
+            { label: 'Master Data Table Projection', value: 'master_table' },
+          ],
+        },
+        { name: 'showLiveStockBadge', label: 'Show Live Stock / Capacity', control: 'toggle' },
+        { name: 'enableMixedCart', label: 'Enable Mixed Cart Add', control: 'toggle' },
+      ],
+    },
+  ],
+  [
+    'content.course-catalog',
+    {
+      type: 'content.course-catalog',
+      name: 'Courses & 90-Day Access Catalogue',
+      category: 'catalog',
+      version: 1,
+      sizing: {
+        defaultColSpan: 6,
+        defaultRowSpan: 7,
+        minColSpan: 4,
+        maxColSpan: 12,
+        minRowSpan: 5,
+      },
+      dataRequirement: 'digital_courses',
+      configSchema: courseCatalogSlotSchema,
+      defaultConfig: {
+        heading: 'Digital Courses & Time-Limited Content (90-Day Access)',
+        showDurationBadge: true,
+        showUpgradeOption: true,
+      },
+      inspectorFields: [
+        { name: 'heading', label: 'Heading', control: 'text' },
+        { name: 'showDurationBadge', label: 'Show 90-Day Permission Badge', control: 'toggle' },
+        { name: 'showUpgradeOption', label: 'Show Upgrade Eligibility', control: 'toggle' },
+      ],
+    },
+  ],
+  [
+    'commerce.subscription-plans',
+    {
+      type: 'commerce.subscription-plans',
+      name: 'Subscriptions & Recurring Passes',
+      category: 'catalog',
+      version: 1,
+      sizing: {
+        defaultColSpan: 6,
+        defaultRowSpan: 7,
+        minColSpan: 4,
+        maxColSpan: 12,
+        minRowSpan: 5,
+      },
+      dataRequirement: 'subscription_plans',
+      configSchema: subscriptionPlansSlotSchema,
+      defaultConfig: {
+        heading: 'Recurring Memberships & Entitlement Plans',
+        highlightReadyToUpgrade: true,
+      },
+      inspectorFields: [
+        { name: 'heading', label: 'Heading', control: 'text' },
+        { name: 'highlightReadyToUpgrade', label: 'Highlight Upgrade Paths', control: 'toggle' },
+      ],
+    },
+  ],
+  [
+    'commerce.master-ledger-slot',
+    {
+      type: 'commerce.master-ledger-slot',
+      name: 'Master Inventory & Timeslot Matrix',
+      category: 'catalog',
+      version: 1,
+      sizing: {
+        defaultColSpan: 12,
+        defaultRowSpan: 7,
+        minColSpan: 6,
+        maxColSpan: 12,
+        minRowSpan: 5,
+      },
+      dataRequirement: 'master_ledger',
+      configSchema: masterLedgerSlotSchema,
+      defaultConfig: {
+        heading: 'Universal Master Inventory & Permission Timeslot Matrix',
+        showFlags: true,
+        showPermissionWindow: true,
+      },
+      inspectorFields: [
+        { name: 'heading', label: 'Matrix Heading', control: 'text' },
+        { name: 'showFlags', label: 'Show Flag_1 & Flag_2 Columns', control: 'toggle' },
+        { name: 'showPermissionWindow', label: 'Show Permission Timeslots', control: 'toggle' },
       ],
     },
   ],

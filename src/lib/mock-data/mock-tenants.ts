@@ -196,4 +196,32 @@ export const MOCK_TENANTS: MockTenant[] = [
     createdAt: '2026-11-01T09:00:00Z',
     onboardingTimeHours: 12,
   },
+  {
+    id: 't-uni-06',
+    name: 'OmniMarket Universal Store, Turf & Academy',
+    slug: 'omni-market',
+    vertical: 'universal_commerce',
+    status: 'active',
+    defaultCurrency: 'INR',
+    plan: 'enterprise',
+    domain: 'omni-market.build-any-website.vercel.app',
+    customDomain: 'omnimarket.in',
+    websiteStatus: 'published',
+    publishedVersion: 3,
+    location: {
+      name: 'OmniMarket Flagship Campus & Fulfillment Hub',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      address: '100 Feet Road, Indiranagar & Online Cloud Campus',
+      phone: '+91 98450 77889',
+      timezone: 'Asia/Kolkata',
+    },
+    stats: {
+      totalBookings: 612,
+      monthlyRevenueMinor: 89400000, // ₹8,94,000
+      utilizationRate: 92,
+    },
+    createdAt: '2026-11-02T10:00:00Z',
+    onboardingTimeHours: 16,
+  },
 ];

@@ -32,6 +32,11 @@ import {
   Clock,
   Calendar,
   HelpCircle,
+  Package,
+  GraduationCap,
+  Repeat,
+  TableProperties,
+  ShoppingCart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -49,6 +54,7 @@ interface EditorCanvasProps {
   onAddSection: () => void;
   onMoveSection: (sectionId: string, direction: 'up' | 'down') => void;
   onDeleteSection: (sectionId: string) => void;
+  onInsertWidget?: (sectionId: string, widgetType: string) => void;
 }
 
 export function EditorCanvas({
@@ -65,6 +71,7 @@ export function EditorCanvas({
   onAddSection,
   onMoveSection,
   onDeleteSection,
+  onInsertWidget,
 }: EditorCanvasProps) {
   const [draggingWidget, setDraggingWidget] = React.useState<{
     sectionId: string;
@@ -118,6 +125,21 @@ export function EditorCanvas({
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {onInsertWidget && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onInsertWidget(section.id, 'commerce.inventory-slot');
+                        }}
+                        data-testid={`quick-add-inventory-slot-${section.id}`}
+                        className="h-6 px-2 text-[10px] gap-1 font-semibold border-primary/40 text-primary hover:bg-primary/10"
+                      >
+                        <Package className="h-3 w-3" />
+                        <span>+ Inventory Slot</span>
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -164,18 +186,26 @@ export function EditorCanvas({
                 </div>
               )}
 
-              {/* Grid Canvas Area with HTML5 Drop Target */}
+              {/* Grid Canvas Area with HTML5 Drop Target (Both Canvas Reposition & Palette Drop) */}
               <div
                 onDragOver={(e) => {
-                  if (draggingWidget && draggingWidget.sectionId === section.id && breakpoint === 'desktop') {
+                  if (breakpoint === 'desktop') {
                     e.preventDefault();
                   }
                 }}
                 onDrop={(e) => {
-                  if (!draggingWidget || draggingWidget.sectionId !== section.id || breakpoint !== 'desktop') {
+                  if (breakpoint !== 'desktop') {
                     return;
                   }
                   e.preventDefault();
+                  const paletteWidgetType = e.dataTransfer?.getData('application/x-widget-type');
+                  if (paletteWidgetType && onInsertWidget) {
+                    onInsertWidget(section.id, paletteWidgetType);
+                    return;
+                  }
+                  if (!draggingWidget || draggingWidget.sectionId !== section.id) {
+                    return;
+                  }
                   const rect = e.currentTarget.getBoundingClientRect();
                   const relX = Math.max(0, e.clientX - rect.left);
                   const relY = Math.max(0, e.clientY - rect.top);
@@ -395,9 +425,12 @@ export function EditorCanvas({
                         </div>
                       )}
 
-                      {/* In-Canvas Component Preview Renderer */}
-                      <div className="flex-1 p-3 sm:p-4 overflow-hidden flex flex-col justify-center">
-                        <WidgetCanvasPreview widget={widget} theme={theme} />
+                      {/* In-Canvas Component Preview Renderer (Size-Aware @container Slot) */}
+                      <div
+                        style={{ containerType: 'inline-size' }}
+                        className="flex-1 p-3 sm:p-4 overflow-y-auto flex flex-col justify-center"
+                      >
+                        <WidgetCanvasPreview widget={widget} theme={theme} colSpan={box.colSpan} />
                       </div>
                     </div>
                   );
@@ -429,14 +462,230 @@ export function EditorCanvas({
 function WidgetCanvasPreview({
   widget,
   theme,
+  colSpan = 6,
 }: {
   widget: PlacedWidgetInstance;
   theme: WebsiteThemeConfig;
+  colSpan?: number;
 }) {
   const config = widget.config as Record<string, unknown>;
   const str = (k: string, fb = '') => (typeof config[k] === 'string' ? (config[k] as string) : fb);
 
   switch (widget.widgetType) {
+    case 'commerce.inventory-slot': {
+      const filterType = str('filterItemType', 'all');
+      const displayStyle = str('displayStyle', 'cards_grid');
+      const previewItems = [
+        {
+          type: 'physical_product',
+          title: 'Farm Fresh Organic Milk (1L)',
+          sub: 'Physical Stock • 50L Available • Local Delivery',
+          price: '₹75 / L',
+          status: 'available',
+          flag: 'perishable_daily',
+        },
+        {
+          type: 'physical_product',
+          title: 'ProBook Ultra 15 Laptop',
+          sub: 'Physical SKU • 5 Units • 8-Min Stock Hold',
+          price: '₹74,999',
+          status: 'available',
+          flag: 'electronics',
+        },
+        {
+          type: 'bookable_resource',
+          title: 'Cricket Turf 1 (7:00–8:00 PM)',
+          sub: 'Exclusive Resource • GiST Overlap Lock',
+          price: '₹1,500 / hr',
+          status: 'available',
+          flag: 'exclusive_slot',
+        },
+        {
+          type: 'digital_content',
+          title: 'AI & Python Bootcamp (90-Day Access)',
+          sub: 'Digital Course • Auto-Expires After 90 Days',
+          price: '₹2,999',
+          status: 'available',
+          flag: '90_day_window',
+        },
+        {
+          type: 'capacity_session',
+          title: 'Morning Yoga Batch (20-Seat Cap)',
+          sub: 'Capacity Session • 19/20 Seats Booked',
+          price: '₹499 / seat',
+          status: 'available',
+          flag: 'max_20_seats',
+        },
+        {
+          type: 'subscription_plan',
+          title: 'OmniPass Pro Monthly Membership',
+          sub: 'Recurring Entitlement • Paid-Through Expiry',
+          price: '₹1,999 / mo',
+          status: 'ready_to_upgrade',
+          flag: 'recurring_monthly',
+        },
+      ].filter((it) => filterType === 'all' || it.type === filterType);
+
+      const gridColsClass =
+        displayStyle === 'compact_list' || colSpan <= 4
+          ? 'grid-cols-1'
+          : colSpan >= 9
+          ? 'grid-cols-1 sm:grid-cols-3'
+          : 'grid-cols-1 sm:grid-cols-2';
+
+      return (
+        <div className="space-y-2.5 text-left text-xs">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <Package className="h-4 w-4 shrink-0" style={{ color: theme.brandAccentHex }} />
+              <span>{str('heading', 'Live Inventory & Instant Order Slot')}</span>
+            </h3>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px] font-mono py-0">
+                Filter: {filterType}
+              </Badge>
+              <Badge variant="success" className="text-[10px] py-0">
+                Mixed Cart Ready
+              </Badge>
+            </div>
+          </div>
+
+          <div className={cn('grid gap-2', gridColsClass)}>
+            {previewItems.slice(0, colSpan <= 4 ? 3 : 6).map((item, idx) => (
+              <div
+                key={idx}
+                className="rounded-lg border border-border p-2.5 bg-card flex flex-col justify-between gap-1.5"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="font-semibold text-foreground truncate">{item.title}</span>
+                    <Badge
+                      variant={item.status === 'ready_to_upgrade' ? 'warning' : 'success'}
+                      className="text-[9px] py-0 px-1.5 shrink-0"
+                    >
+                      {item.status}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{item.sub}</p>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                  <span className="font-mono font-bold text-[11px]" style={{ color: theme.brandAccentHex }}>
+                    {item.price}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-foreground">
+                    <ShoppingCart className="h-2.5 w-2.5" />
+                    Add / Book
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case 'content.course-catalog':
+      return (
+        <div className="space-y-2.5 text-left text-xs">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <GraduationCap className="h-4 w-4" style={{ color: theme.brandAccentHex }} />
+              <span>{str('heading', 'Courses & Time-Limited Content (90-Day Access)')}</span>
+            </h3>
+            <Badge variant="outline" className="text-[10px] font-mono py-0">
+              90-Day Entitlement
+            </Badge>
+          </div>
+          <div className="rounded-lg border border-border p-3 bg-card space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-foreground">
+                Full-Stack AI & Python Masterclass (42 Modules)
+              </span>
+              <span className="font-mono font-bold" style={{ color: theme.brandAccentHex }}>
+                ₹2,999
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Grants viewing permission from T0 to T0 + 90 days. Automatically expires on Day 90.
+            </p>
+          </div>
+        </div>
+      );
+
+    case 'commerce.subscription-plans':
+      return (
+        <div className="space-y-2.5 text-left text-xs">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <Repeat className="h-4 w-4" style={{ color: theme.brandAccentHex }} />
+              <span>{str('heading', 'Recurring Memberships & Entitlement Plans')}</span>
+            </h3>
+            <Badge variant="warning" className="text-[10px] py-0">
+              ready_to_upgrade
+            </Badge>
+          </div>
+          <div className="rounded-lg border border-border p-3 bg-card space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-foreground">
+                OmniPass Pro Monthly Membership
+              </span>
+              <span className="font-mono font-bold" style={{ color: theme.brandAccentHex }}>
+                ₹1,999 / mo
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Auto-renews on billing cycle; retains access through paid period end upon cancellation.
+            </p>
+          </div>
+        </div>
+      );
+
+    case 'commerce.master-ledger-slot':
+      return (
+        <div className="space-y-2 text-left text-xs">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+              <TableProperties className="h-4 w-4" style={{ color: theme.brandAccentHex }} />
+              <span>{str('heading', 'Universal Master Inventory & Permission Timeslot Matrix')}</span>
+            </h3>
+            <Badge variant="outline" className="text-[10px] font-mono py-0">
+              v_universal_commerce_master
+            </Badge>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+            <table className="w-full text-[10px] text-left">
+              <thead className="bg-muted/60 text-muted-foreground border-b border-border font-mono">
+                <tr>
+                  <th className="p-1.5">Entity / Sub_entity</th>
+                  <th className="p-1.5">Category</th>
+                  <th className="p-1.5">Flag_1 / Flag_2</th>
+                  <th className="p-1.5">Item_name</th>
+                  <th className="p-1.5">Permission_timeslot</th>
+                  <th className="p-1.5">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                <tr>
+                  <td className="p-1.5 font-medium">OmniMarket / Fresh Dairy</td>
+                  <td className="p-1.5">Dairy</td>
+                  <td className="p-1.5 font-mono">perishable_daily</td>
+                  <td className="p-1.5">Farm Fresh Milk 1L</td>
+                  <td className="p-1.5 font-mono">Stock: 50L</td>
+                  <td className="p-1.5 text-emerald-600 font-semibold">available</td>
+                </tr>
+                <tr>
+                  <td className="p-1.5 font-medium">OmniMarket / Academy</td>
+                  <td className="p-1.5">Courses</td>
+                  <td className="p-1.5 font-mono">90_day_permission</td>
+                  <td className="p-1.5">Python Masterclass</td>
+                  <td className="p-1.5 font-mono">T0 → +90 Days</td>
+                  <td className="p-1.5 text-amber-600 font-semibold">ready_to_upgrade</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
     case 'hero.banner':
       return (
         <div className="space-y-3 text-left py-2">

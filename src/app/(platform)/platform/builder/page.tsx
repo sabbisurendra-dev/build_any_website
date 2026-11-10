@@ -224,6 +224,7 @@ function PlatformBuilderWorkspace() {
               onAddSection={addSection}
               onMoveSection={moveSection}
               onDeleteSection={deleteSection}
+              onInsertWidget={insertWidget}
             />
           </div>
         </main>

@@ -14,6 +14,129 @@ export const businessVerticalEnum = pgEnum('business_vertical', [
   'salon_beauty',
   'fitness_yoga',
   'general_appointment',
+  'retail_grocery',
+  'electronics_retail',
+  'edtech_courses',
+  'digital_membership',
+  'universal_commerce',
+]);
+
+export const catalogueItemTypeEnum = pgEnum('catalogue_item_type', [
+  'physical_product',
+  'bookable_resource',
+  'service_appointment',
+  'capacity_session',
+  'digital_content',
+  'subscription_plan',
+  'bundle',
+]);
+
+export const catalogueItemStatusEnum = pgEnum('catalogue_item_status', [
+  'draft',
+  'dormant',
+  'active',
+  'unavailable',
+  'ready_to_upgrade',
+  'archived',
+]);
+
+export const fulfilmentTypeEnum = pgEnum('fulfilment_type', [
+  'physical_delivery',
+  'store_pickup',
+  'time_slot_reservation',
+  'session_seat',
+  'digital_instant_access',
+  'recurring_entitlement',
+  'composite',
+]);
+
+export const billingModelEnum = pgEnum('billing_model', [
+  'one_time',
+  'time_slot',
+  'fixed_duration_access',
+  'recurring_subscription',
+  'usage_pack',
+]);
+
+export const orderStatusEnum = pgEnum('order_status', [
+  'draft',
+  'awaiting_payment',
+  'confirmed',
+  'partially_fulfilled',
+  'fulfilled',
+  'cancelled',
+  'refunded',
+]);
+
+export const orderLineStatusEnum = pgEnum('order_line_status', [
+  'pending',
+  'reserved',
+  'confirmed',
+  'fulfilled',
+  'cancelled',
+  'refunded',
+]);
+
+export const inventoryReservationStatusEnum = pgEnum('inventory_reservation_status', [
+  'active',
+  'committed',
+  'released',
+  'expired',
+]);
+
+export const inventoryMovementTypeEnum = pgEnum('inventory_movement_type', [
+  'restock',
+  'sale_commit',
+  'return_restock',
+  'manual_adjustment',
+  'damage_writeoff',
+]);
+
+export const fulfilmentMethodEnum = pgEnum('fulfilment_method', [
+  'local_delivery',
+  'courier_shipment',
+  'store_pickup',
+]);
+
+export const fulfilmentStatusEnum = pgEnum('fulfilment_status', [
+  'pending',
+  'packed',
+  'ready_for_pickup',
+  'out_for_delivery',
+  'in_transit',
+  'delivered',
+  'picked_up',
+  'failed_delivery',
+  'returned',
+]);
+
+export const entitlementTypeEnum = pgEnum('entitlement_type', [
+  'digital_content_access',
+  'time_slot_access',
+  'session_attendance',
+  'membership_access',
+  'usage_credit_pack',
+]);
+
+export const entitlementStatusEnum = pgEnum('entitlement_status', [
+  'pending',
+  'active',
+  'ready_to_upgrade',
+  'upgraded',
+  'exhausted',
+  'expired',
+  'suspended',
+  'revoked',
+]);
+
+export const customerSubscriptionStatusEnum = pgEnum('customer_subscription_status', [
+  'trialing',
+  'active',
+  'past_due',
+  'cancel_at_period_end',
+  'cancelled',
+  'expired',
+  'paused',
 ]);
 
 export const roleScopeEnum = pgEnum('role_scope', ['platform', 'tenant']);

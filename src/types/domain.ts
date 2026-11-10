@@ -27,9 +27,120 @@ export const BUSINESS_VERTICALS = [
   'salon_beauty',
   'fitness_yoga',
   'general_appointment',
+  'retail_grocery',
+  'electronics_retail',
+  'edtech_courses',
+  'digital_membership',
+  'universal_commerce',
 ] as const;
 
 export type BusinessVertical = (typeof BUSINESS_VERTICALS)[number];
+
+export const CATALOGUE_ITEM_TYPES = [
+  'physical_product',
+  'bookable_resource',
+  'service_appointment',
+  'capacity_session',
+  'digital_content',
+  'subscription_plan',
+  'bundle',
+] as const;
+
+export type CatalogueItemType = (typeof CATALOGUE_ITEM_TYPES)[number];
+
+export const CATALOGUE_ITEM_STATUSES = [
+  'draft',
+  'dormant',
+  'active',
+  'unavailable',
+  'ready_to_upgrade',
+  'archived',
+] as const;
+
+export type CatalogueItemStatus = (typeof CATALOGUE_ITEM_STATUSES)[number];
+
+export const FULFILMENT_TYPES = [
+  'physical_delivery',
+  'store_pickup',
+  'time_slot_reservation',
+  'session_seat',
+  'digital_instant_access',
+  'recurring_entitlement',
+  'composite',
+] as const;
+
+export type FulfilmentType = (typeof FULFILMENT_TYPES)[number];
+
+export const BILLING_MODELS = [
+  'one_time',
+  'time_slot',
+  'fixed_duration_access',
+  'recurring_subscription',
+  'usage_pack',
+] as const;
+
+export type BillingModel = (typeof BILLING_MODELS)[number];
+
+export const ORDER_STATUSES = [
+  'draft',
+  'awaiting_payment',
+  'confirmed',
+  'partially_fulfilled',
+  'fulfilled',
+  'cancelled',
+  'refunded',
+] as const;
+
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+export const FULFILMENT_STATUSES = [
+  'pending',
+  'packed',
+  'ready_for_pickup',
+  'out_for_delivery',
+  'in_transit',
+  'delivered',
+  'picked_up',
+  'failed_delivery',
+  'returned',
+] as const;
+
+export type FulfilmentStatus = (typeof FULFILMENT_STATUSES)[number];
+
+export const ENTITLEMENT_TYPES = [
+  'digital_content_access',
+  'time_slot_access',
+  'session_attendance',
+  'membership_access',
+  'usage_credit_pack',
+] as const;
+
+export type EntitlementType = (typeof ENTITLEMENT_TYPES)[number];
+
+export const ENTITLEMENT_STATUSES = [
+  'pending',
+  'active',
+  'ready_to_upgrade',
+  'upgraded',
+  'exhausted',
+  'expired',
+  'suspended',
+  'revoked',
+] as const;
+
+export type EntitlementStatus = (typeof ENTITLEMENT_STATUSES)[number];
+
+export const CUSTOMER_SUBSCRIPTION_STATUSES = [
+  'trialing',
+  'active',
+  'past_due',
+  'cancel_at_period_end',
+  'cancelled',
+  'expired',
+  'paused',
+] as const;
+
+export type CustomerSubscriptionStatus = (typeof CUSTOMER_SUBSCRIPTION_STATUSES)[number];
 
 export const BOOKING_MODELS = [
   'exclusive_resource', // Model A: Football turfs, badminton/tennis/box cricket courts

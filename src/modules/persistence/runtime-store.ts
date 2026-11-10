@@ -14,6 +14,18 @@ import { MOCK_TENANTS, type MockTenant } from '@/lib/mock-data/mock-tenants';
 import { MOCK_RESOURCES } from '@/lib/mock-data/mock-resources';
 import { MOCK_BOOKINGS } from '@/lib/mock-data/mock-bookings';
 import type { AuditLogEntryInput } from '@/modules/tenancy/tenant.service';
+import type {
+  RuntimeBusinessUnit,
+  RuntimeCatalogueItem,
+  RuntimeCategory,
+  RuntimeCustomerSubscription,
+  RuntimeEntitlementRecord,
+  RuntimeFulfilmentRecord,
+  RuntimeInventoryItem,
+  RuntimeInventoryMovement,
+  RuntimeInventoryReservation,
+  RuntimeOrderRecord,
+} from '@/modules/commerce/commerce.types';
 
 export interface CatalogResourceEntity {
   id: UUID;
@@ -211,6 +223,17 @@ export interface PlatformRuntimeSnapshot {
   processedWebhookKeys: string[];
   notifications: RuntimeNotificationRecord[];
   auditLogs: AuditLogEntryInput[];
+  // Universal Commerce & Entitlement Extensions
+  businessUnits: RuntimeBusinessUnit[];
+  categories: RuntimeCategory[];
+  catalogueItems: RuntimeCatalogueItem[];
+  inventoryItems: RuntimeInventoryItem[];
+  inventoryReservations: RuntimeInventoryReservation[];
+  inventoryMovements: RuntimeInventoryMovement[];
+  orders: RuntimeOrderRecord[];
+  fulfilments: RuntimeFulfilmentRecord[];
+  entitlements: RuntimeEntitlementRecord[];
+  customerSubscriptions: RuntimeCustomerSubscription[];
 }
 
 const RUNTIME_FILE_PATH = resolve(process.cwd(), '.runtime-state.json');
@@ -231,6 +254,11 @@ export function buildDefaultThemeForVertical(
     salon_beauty: '#db2777',
     fitness_yoga: '#7c3aed',
     general_appointment: '#0f172a',
+    retail_grocery: '#15803d',
+    electronics_retail: '#1d4ed8',
+    edtech_courses: '#4f46e5',
+    digital_membership: '#9333ea',
+    universal_commerce: '#0f766e',
   };
 
   return {
@@ -410,6 +438,111 @@ export function buildStarterSectionsForTenant(tenant: MockTenant): PageSection[]
     ];
   }
 
+  if (
+    tenant.vertical === 'universal_commerce' ||
+    tenant.vertical === 'retail_grocery' ||
+    tenant.vertical === 'electronics_retail' ||
+    tenant.vertical === 'edtech_courses' ||
+    tenant.vertical === 'digital_membership'
+  ) {
+    return [
+      {
+        id: 'sec-hero-universal-01',
+        name: 'Universal Storefront Hero & Live Inventory Slot',
+        sortOrder: 0,
+        compactMode: 'vertical',
+        rowUnitPx: 48,
+        gapPx: 16,
+        style: { backgroundVariant: 'default', paddingY: 'md', fullBleed: false },
+        widgets: [
+          {
+            id: 'w-hero-01',
+            widgetType: 'hero.banner',
+            widgetVersion: 1,
+            placement: { desktop: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 7 } },
+            config: {
+              eyebrow: `${tenant.location.name} • Universal Commerce & Entitlements`,
+              headline: `${tenant.name} — Sell Any Item, Book Any Slot, Grant Any Right`,
+              subheadline:
+                'Order physical items (milk, laptops), book exclusive turf & doctor slots, enroll in 20-seat classes, or unlock 90-day digital courses in a single unified cart.',
+              primaryCtaLabel: 'Explore Catalogue & Book',
+              primaryCtaHref: '#book',
+              alignment: 'left',
+            },
+          },
+          {
+            id: 'w-uni-inv-slot-02',
+            widgetType: 'commerce.inventory-slot',
+            widgetVersion: 1,
+            placement: { desktop: { colStart: 1, colSpan: 7, rowStart: 8, rowSpan: 9 } },
+            config: {
+              heading: 'Live Inventory & Instant Order Slot (Products, Courses, Slots & Passes)',
+              filterItemType: 'all',
+              displayStyle: 'cards_grid',
+              showLiveStockBadge: true,
+              enableMixedCart: true,
+            },
+          },
+          {
+            id: 'w-slot-picker-03',
+            widgetType: 'booking.slot-picker',
+            widgetVersion: 1,
+            placement: { desktop: { colStart: 8, colSpan: 5, rowStart: 8, rowSpan: 9 } },
+            config: {
+              heading: 'Instant Turf, Appointment & Class Slot Picker',
+              bookingModel: 'exclusive_resource',
+              showPricingSummary: true,
+              dateHorizonDays: 14,
+            },
+          },
+        ],
+      },
+      {
+        id: 'sec-master-matrix-02',
+        name: 'Courses, Subscriptions & Master Data Ledger',
+        sortOrder: 1,
+        compactMode: 'vertical',
+        rowUnitPx: 48,
+        gapPx: 16,
+        style: { backgroundVariant: 'muted', paddingY: 'md', fullBleed: false },
+        widgets: [
+          {
+            id: 'w-courses-04',
+            widgetType: 'content.course-catalog',
+            widgetVersion: 1,
+            placement: { desktop: { colStart: 1, colSpan: 6, rowStart: 1, rowSpan: 7 } },
+            config: {
+              heading: 'Time-Limited Courses & Digital Catalogue (90-Day Access)',
+              showDurationBadge: true,
+              showUpgradeOption: true,
+            },
+          },
+          {
+            id: 'w-subs-05',
+            widgetType: 'commerce.subscription-plans',
+            widgetVersion: 1,
+            placement: { desktop: { colStart: 7, colSpan: 6, rowStart: 1, rowSpan: 7 } },
+            config: {
+              heading: 'Recurring Memberships & Entitlement Plans',
+              highlightReadyToUpgrade: true,
+            },
+          },
+          {
+            id: 'w-master-ledger-06',
+            widgetType: 'commerce.master-ledger-slot',
+            widgetVersion: 1,
+            placement: { desktop: { colStart: 1, colSpan: 12, rowStart: 8, rowSpan: 7 } },
+            config: {
+              heading: 'Universal Master Inventory & Permission Timeslot Matrix',
+              showFlags: true,
+              showPermissionWindow: true,
+            },
+          },
+        ],
+      },
+    ];
+  }
+
   // Default Model A: Sports Turf / Racquet Court / Exclusive Resource
   const isKickoff = tenant.id === 't-kickoff-01';
   return [
@@ -467,8 +600,8 @@ export function buildStarterSectionsForTenant(tenant: MockTenant): PageSection[]
       ],
     },
     {
-      id: 'sec-location-02',
-      name: 'Location, Parking & Timings',
+      id: 'sec-universal-inventory-02',
+      name: 'Universal Inventory, Courses, Memberships & Location',
       sortOrder: 1,
       compactMode: 'vertical',
       rowUnitPx: 48,
@@ -476,10 +609,23 @@ export function buildStarterSectionsForTenant(tenant: MockTenant): PageSection[]
       style: { backgroundVariant: 'muted', paddingY: 'md', fullBleed: false },
       widgets: [
         {
-          id: 'w-loc-04',
+          id: 'w-uni-inv-slot-04',
+          widgetType: 'commerce.inventory-slot',
+          widgetVersion: 1,
+          placement: { desktop: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 8 } },
+          config: {
+            heading: 'Available Inventory, Pro Gear, Courses & Memberships (Single-Slot View)',
+            filterItemType: 'all',
+            displayStyle: 'cards_grid',
+            showLiveStockBadge: true,
+            enableMixedCart: true,
+          },
+        },
+        {
+          id: 'w-loc-05',
           widgetType: 'location.map-hours',
           widgetVersion: 1,
-          placement: { desktop: { colStart: 1, colSpan: 12, rowStart: 1, rowSpan: 5 } },
+          placement: { desktop: { colStart: 1, colSpan: 12, rowStart: 9, rowSpan: 5 } },
           config: {
             heading: `${tenant.location.name} • Open 6:00 AM – 1:00 AM`,
             showGoogleMapEmbed: true,
@@ -893,6 +1039,503 @@ function createSeededSnapshot(): PlatformRuntimeSnapshot {
     });
   }
 
+  // Seed Universal Commerce & Entitlement Layer (Entity -> Sub_entity -> Category -> CatalogueItems -> Inventory -> Entitlements)
+  const businessUnits: RuntimeBusinessUnit[] = [
+    {
+      id: 'bu-omni-retail-01',
+      tenantId: 't-uni-06',
+      name: 'OmniFresh Dairy & Tech Retail',
+      slug: 'omnifresh-retail',
+      domainVertical: 'retail_electronics',
+      flag1: 'instant_fulfilment',
+      flag2: 'verified_stock',
+      status: 'active',
+    },
+    {
+      id: 'bu-omni-arena-02',
+      tenantId: 't-uni-06',
+      name: 'OmniSports Turf & Fitness Arena',
+      slug: 'omnisports-arena',
+      domainVertical: 'sports_fitness',
+      flag1: 'gist_protected',
+      flag2: 'peak_floodlit',
+      status: 'active',
+    },
+    {
+      id: 'bu-omni-academy-03',
+      tenantId: 't-uni-06',
+      name: 'OmniLearn Digital Academy',
+      slug: 'omnilearn-academy',
+      domainVertical: 'edtech_courses',
+      flag1: 'time_bounded_access',
+      flag2: '90_day_window',
+      status: 'active',
+    },
+    {
+      id: 'bu-kickoff-proshop-01',
+      tenantId: 't-kickoff-01',
+      name: 'Kickoff Arena & Pro Store',
+      slug: 'kickoff-proshop',
+      domainVertical: 'sports_turf',
+      flag1: 'fifa_certified',
+      flag2: 'instant_slot',
+      status: 'active',
+    },
+    {
+      id: 'bu-demo-velocity-01',
+      tenantId: 't-demo-01',
+      name: 'Velocity Turf, Dairy, Tech & Academy Hub',
+      slug: 'velocity-hub',
+      domainVertical: 'universal_commerce',
+      flag1: 'multi_vertical',
+      flag2: 'showcase_ready',
+      status: 'active',
+    },
+  ];
+
+  const categories: RuntimeCategory[] = [
+    {
+      id: 'cat-dairy-grocery',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-retail-01',
+      name: 'Dairy & Daily Essentials',
+      slug: 'dairy-daily-essentials',
+      sortOrder: 1,
+      isActive: true,
+    },
+    {
+      id: 'cat-electronics-laptops',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-retail-01',
+      name: 'Laptops & Electronics',
+      slug: 'laptops-electronics',
+      sortOrder: 2,
+      isActive: true,
+    },
+    {
+      id: 'cat-turf-slots',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-arena-02',
+      name: 'Turf, Doctor & Yoga Slots',
+      slug: 'turf-doctor-yoga-slots',
+      sortOrder: 3,
+      isActive: true,
+    },
+    {
+      id: 'cat-digital-courses',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-academy-03',
+      name: 'Courses & Digital Content (90-Day Access)',
+      slug: 'digital-courses',
+      sortOrder: 4,
+      isActive: true,
+    },
+    {
+      id: 'cat-memberships',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-academy-03',
+      name: 'Subscriptions & Recurring Entitlements',
+      slug: 'subscriptions-memberships',
+      sortOrder: 5,
+      isActive: true,
+    },
+  ];
+
+  // Add universal resources & sessions for OmniMarket (t-uni-06) and Velocity (t-demo-01)
+  resources.push({
+    id: 'res-omni-turf-01',
+    tenantId: 't-uni-06',
+    name: 'Cricket Turf 1 (Floodlit 7v7 & Box Cricket)',
+    type: 'cricket_turf',
+    slotDurationMinutes: 60,
+    slotStepMinutes: 60,
+    bufferBeforeMinutes: 0,
+    bufferAfterMinutes: 0,
+    basePriceMinor: 120000,
+    peakPriceMinor: 160000,
+    description: 'Exclusive floodlit cricket & football turf with electronic scoreboard.',
+    operatingStartHour: 6,
+    operatingEndHour: 24,
+    operatingHoursLabel: '06:00 AM – 12:00 Midnight',
+    isActive: true,
+  });
+
+  sessions.push({
+    id: 'sess-omni-yoga-20',
+    tenantId: 't-uni-06',
+    name: 'Morning Hatha Yoga Class (20-Seat Studio)',
+    instructorName: 'Acharya Kavya',
+    description: '20-person capacity group yoga session with live seat ceiling enforcement.',
+    dateLocal: '*',
+    startTime: '07:00',
+    endTime: '08:00',
+    maxCapacity: 20,
+    bookedCount: 18,
+    heldCount: 0,
+    priceMinor: 49900,
+    isActive: true,
+  });
+
+  // Helper to seed universal catalogue items for a target tenant
+  const seedCatalogueForTenant = (
+    targetTenantId: string,
+    domainName: string,
+    turfResourceId: string,
+    yogaSessionId: string,
+  ): { items: RuntimeCatalogueItem[]; inv: RuntimeInventoryItem[] } => {
+    const suffix = targetTenantId.replace(/[^a-z0-9]/gi, '');
+    const items: RuntimeCatalogueItem[] = [
+      {
+        id: `ci-milk-1l-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-retail-01',
+        categoryId: 'cat-dairy-grocery',
+        categoryName: 'Dairy & Daily Essentials',
+        subEntityName: 'Fresh Dairy Division',
+        domainName,
+        itemType: 'physical_product',
+        fulfilmentType: 'physical_delivery',
+        billingModel: 'one_time',
+        name: 'Farm Fresh A2 Organic Cow Milk (1 Litre)',
+        slug: `farm-fresh-milk-1l-${suffix}`,
+        sku: `MILK-1L-${suffix.toUpperCase()}`,
+        shortDescription: 'Chilled farm-to-door A2 cow milk pouch. Order 1L, 2L, or more with instant stock lock.',
+        description:
+          'Pasteurized organic A2 cow milk delivered chilled in eco-pouches. Stock is reserved during checkout and dispatched via local morning delivery.',
+        flag1: 'perishable_daily',
+        flag2: 'cold_chain_delivery',
+        status: 'active',
+        priceMinor: 7500, // ₹75 per litre
+        compareAtPriceMinor: 8500,
+        currency: 'INR',
+        unitLabel: 'litre',
+        badgeText: '50 Litres In Stock',
+      },
+      {
+        id: `ci-laptop-pro15-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-retail-01',
+        categoryId: 'cat-electronics-laptops',
+        categoryName: 'Laptops & Electronics',
+        subEntityName: 'TechNova Electronics Division',
+        domainName,
+        itemType: 'physical_product',
+        fulfilmentType: 'physical_delivery',
+        billingModel: 'one_time',
+        name: 'ProBook Ultra 15 Laptop (16GB RAM / 512GB NVMe)',
+        slug: `probook-ultra-15-laptop-${suffix}`,
+        sku: `LAPTOP-PRO15-${suffix.toUpperCase()}`,
+        shortDescription: 'High-performance developer & creator laptop with 8-min checkout stock reservation.',
+        description:
+          '15.6-inch 120Hz OLED display, 16GB LPDDR5X RAM, 512GB PCIe Gen4 SSD. Supports home courier delivery or instant store pickup.',
+        flag1: 'electronics_serialised',
+        flag2: 'warranty_1yr',
+        status: 'active',
+        priceMinor: 7499900, // ₹74,999
+        compareAtPriceMinor: 8299900,
+        currency: 'INR',
+        unitLabel: 'unit',
+        badgeText: '5 Units Available',
+      },
+      {
+        id: `ci-turf-slot-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-arena-02',
+        categoryId: 'cat-turf-slots',
+        categoryName: 'Sports Turf & Court Slots',
+        subEntityName: 'Sports Arena Division',
+        domainName,
+        itemType: 'bookable_resource',
+        fulfilmentType: 'time_slot_reservation',
+        billingModel: 'time_slot',
+        name: 'Cricket Turf 1 — Exclusive 1-Hour Floodlit Slot',
+        slug: `cricket-turf-1-slot-${suffix}`,
+        sku: `TURF-1-SLOT-${suffix.toUpperCase()}`,
+        shortDescription: 'Permission to use Cricket Turf 1 for an exclusive 60-min time slot (e.g., 7:00 PM – 8:00 PM).',
+        description:
+          'Protected by PostgreSQL GiST exclusion locks so two customers can never overlap on the same turf interval.',
+        flag1: 'exclusive_resource',
+        flag2: 'gist_overlap_guard',
+        status: 'active',
+        priceMinor: 150000, // ₹1,500/hr
+        currency: 'INR',
+        unitLabel: 'hour slot',
+        resourceId: turfResourceId,
+        badgeText: 'Live GiST Slot Lock',
+      },
+      {
+        id: `ci-doctor-appt-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-arena-02',
+        categoryId: 'cat-turf-slots',
+        categoryName: 'Clinical & Specialist Appointments',
+        subEntityName: 'Health & Wellness Clinic',
+        domainName,
+        itemType: 'service_appointment',
+        fulfilmentType: 'time_slot_reservation',
+        billingModel: 'time_slot',
+        name: 'Specialist Doctor Consultation (30-Min Slot)',
+        slug: `specialist-doctor-consultation-${suffix}`,
+        sku: `DOC-APPT-30-${suffix.toUpperCase()}`,
+        shortDescription: '1-on-1 clinical consultation slot with automatic 15-min sterilization buffer.',
+        description: 'Book a verified practitioner appointment slot with instant calendar confirmation.',
+        flag1: 'staff_appointment',
+        flag2: 'buffer_15m',
+        status: 'active',
+        priceMinor: 80000, // ₹800
+        currency: 'INR',
+        unitLabel: 'appointment',
+        serviceId: 'srv-dental-consult',
+        badgeText: 'Practitioner Slot',
+      },
+      {
+        id: `ci-yoga-class-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-arena-02',
+        categoryId: 'cat-turf-slots',
+        categoryName: 'Fitness & Group Batches',
+        subEntityName: 'Mindfulness & Fitness Studio',
+        domainName,
+        itemType: 'capacity_session',
+        fulfilmentType: 'session_seat',
+        billingModel: 'time_slot',
+        name: 'Morning Hatha Yoga Class (20-Person Capacity)',
+        slug: `morning-yoga-class-20-${suffix}`,
+        sku: `YOGA-BATCH-20-${suffix.toUpperCase()}`,
+        shortDescription: 'Reserve your mat in our 20-seat yoga batch. Hard capacity ceiling prevents overbooking.',
+        description: 'Scheduled group session with real-time remaining seat counter.',
+        flag1: 'capacity_session',
+        flag2: 'max_20_seats',
+        status: 'active',
+        priceMinor: 49900, // ₹499
+        currency: 'INR',
+        unitLabel: 'seat',
+        sessionId: yogaSessionId,
+         badgeText: '20-Seat Capacity Cap',
+      },
+      {
+        id: `ci-course-python90-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-academy-03',
+        categoryId: 'cat-digital-courses',
+        categoryName: 'Courses & Digital Content (90-Day Access)',
+        subEntityName: 'Digital Learning Academy',
+        domainName,
+        itemType: 'digital_content',
+        fulfilmentType: 'digital_instant_access',
+        billingModel: 'fixed_duration_access',
+        name: 'Full-Stack AI & Python Masterclass (90-Day Viewing Permission)',
+        slug: `fullstack-ai-python-90d-${suffix}`,
+        sku: `COURSE-PY-90D-${suffix.toUpperCase()}`,
+        shortDescription: 'Instant permission to view 42 HD modules & labs for 90 days from purchase.',
+        description:
+          'Grants an immediate time-bounded digital entitlement (permission_timeslot_start = now, permission_timeslot_end = now + 90 days) that automatically expires after 90 days.',
+        flag1: 'digital_course',
+        flag2: '90_day_permission',
+        status: 'active',
+        priceMinor: 299900, // ₹2,999
+        compareAtPriceMinor: 499900,
+        currency: 'INR',
+        unitLabel: '90-day access',
+        accessDurationDays: 90,
+        badgeText: '90-Day Viewing Right',
+      },
+      {
+        id: `ci-sub-pro-monthly-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-academy-03',
+        categoryId: 'cat-memberships',
+        categoryName: 'Subscriptions & Recurring Entitlements',
+        subEntityName: 'All-Access Membership Club',
+        domainName,
+        itemType: 'subscription_plan',
+        fulfilmentType: 'recurring_entitlement',
+        billingModel: 'recurring_subscription',
+        name: 'OmniPass Pro Monthly Membership (Unlimited Courses + Priority Turf)',
+        slug: `omnipass-pro-monthly-${suffix}`,
+        sku: `SUB-PRO-MO-${suffix.toUpperCase()}`,
+        shortDescription: 'Recurring monthly entitlement. Auto-renews on payment; retains access until paid-through date on cancel.',
+        description:
+          'Includes unlimited digital catalogue viewing and 4 priority turf/class credits every billing cycle.',
+        flag1: 'recurring_monthly',
+        flag2: 'ready_to_upgrade_tier',
+        status: 'active',
+        priceMinor: 199900, // ₹1,999/month
+        currency: 'INR',
+        unitLabel: 'month',
+        billingInterval: 'monthly',
+        accessDurationDays: 30,
+        includedUsageUnits: 30,
+        badgeText: 'Recurring Entitlement',
+      },
+      {
+        id: `ci-dormant-drone-${suffix}`,
+        tenantId: targetTenantId,
+        businessUnitId: 'bu-omni-retail-01',
+        categoryId: 'cat-electronics-laptops',
+        categoryName: 'Laptops & Electronics',
+        subEntityName: 'TechNova Electronics Division',
+        domainName,
+        itemType: 'physical_product',
+        fulfilmentType: 'physical_delivery',
+        billingModel: 'one_time',
+        name: 'Autonomous 4K Sports Tracking Drone (Next-Gen)',
+        slug: `autonomous-sports-drone-${suffix}`,
+        sku: `DRONE-4K-${suffix.toUpperCase()}`,
+        shortDescription: 'Pre-configured seasonal catalogue item currently in dormant status.',
+        description: 'Demonstrates dormant status in the Master Data Table before public activation.',
+        flag1: 'seasonal_launch',
+        flag2: 'pre_order_soon',
+        status: 'dormant',
+        priceMinor: 4599900,
+        currency: 'INR',
+        unitLabel: 'unit',
+        badgeText: 'Dormant (Upcoming)',
+      },
+    ];
+
+    const inv: RuntimeInventoryItem[] = [
+      {
+        id: `inv-milk-${suffix}`,
+        tenantId: targetTenantId,
+        catalogueItemId: `ci-milk-1l-${suffix}`,
+        sku: `MILK-1L-${suffix.toUpperCase()}`,
+        unitLabel: 'litre',
+        quantityOnHand: 50,
+        quantityReserved: 0,
+        lowStockThreshold: 10,
+        allowBackorder: false,
+        updatedAtIso: new Date().toISOString(),
+      },
+      {
+        id: `inv-laptop-${suffix}`,
+        tenantId: targetTenantId,
+        catalogueItemId: `ci-laptop-pro15-${suffix}`,
+        sku: `LAPTOP-PRO15-${suffix.toUpperCase()}`,
+        unitLabel: 'unit',
+        quantityOnHand: 5,
+        quantityReserved: 0,
+        lowStockThreshold: 2,
+        allowBackorder: false,
+        updatedAtIso: new Date().toISOString(),
+      },
+    ];
+
+    return { items, inv };
+  };
+
+  const catalogueItems: RuntimeCatalogueItem[] = [];
+  const inventoryItems: RuntimeInventoryItem[] = [];
+
+  for (const t of tenants) {
+    const turfRes =
+      t.id === 't-demo-01'
+        ? 'res-demo-turf-01'
+        : t.id === 't-uni-06'
+        ? 'res-omni-turf-01'
+        : t.id === 't-apex-02'
+        ? 'res-apex-court-01'
+        : 'res-turf-01';
+    const yogaSess =
+      t.id === 't-uni-06' ? 'sess-omni-yoga-20' : 'sess-morning-yoga-01';
+
+    const seeded = seedCatalogueForTenant(
+      t.id,
+      t.customDomain ?? `${t.slug}.build-any-website.vercel.app`,
+      turfRes,
+      yogaSess,
+    );
+    catalogueItems.push(...seeded.items);
+    inventoryItems.push(...seeded.inv);
+  }
+
+  // Seed representative customer entitlements demonstrating `active`, `ready_to_upgrade`, and `expired` states
+  const nowMs = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const entitlements: RuntimeEntitlementRecord[] = [
+    {
+      id: 'ent-seed-course-active-01',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-academy-03',
+      catalogueItemId: 'ci-course-python90-tuni06',
+      itemName: 'Full-Stack AI & Python Masterclass (90-Day Viewing Permission)',
+      customerName: 'Aarav Sharma',
+      customerPhone: '+91 98450 11223',
+      customerEmail: 'aarav.sharma@example.com',
+      entitlementType: 'digital_content_access',
+      permissionTimeslotStartIso: new Date(nowMs - 10 * dayMs).toISOString(),
+      permissionTimeslotEndIso: new Date(nowMs + 80 * dayMs).toISOString(),
+      maxUsageCount: null,
+      consumedUsageCount: 14,
+      status: 'active',
+      flag1: 'digital_course',
+      flag2: '90_day_permission',
+      createdAtIso: new Date(nowMs - 10 * dayMs).toISOString(),
+      updatedAtIso: new Date(nowMs - 1 * dayMs).toISOString(),
+    },
+    {
+      id: 'ent-seed-upgrade-ready-02',
+      tenantId: 't-uni-06',
+      businessUnitId: 'bu-omni-academy-03',
+      catalogueItemId: 'ci-sub-pro-monthly-tuni06',
+      itemName: 'OmniPass Pro Monthly Membership (Unlimited Courses + Priority Turf)',
+      customerName: 'Divya Nair',
+      customerPhone: '+91 98801 44556',
+      customerEmail: 'divya.nair@example.com',
+      entitlementType: 'membership_access',
+      permissionTimeslotStartIso: new Date(nowMs - 26 * dayMs).toISOString(),
+      permissionTimeslotEndIso: new Date(nowMs + 4 * dayMs).toISOString(),
+      maxUsageCount: 30,
+      consumedUsageCount: 28,
+      status: 'ready_to_upgrade',
+      flag1: 'annual_upgrade_discount_20pct',
+      flag2: 'near_usage_threshold',
+      createdAtIso: new Date(nowMs - 26 * dayMs).toISOString(),
+      updatedAtIso: new Date(nowMs).toISOString(),
+    },
+    {
+      id: 'ent-seed-kickoff-course-03',
+      tenantId: 't-kickoff-01',
+      businessUnitId: 'bu-kickoff-proshop-01',
+      catalogueItemId: 'ci-course-python90-tkickoff01',
+      itemName: 'Full-Stack AI & Python Masterclass (90-Day Viewing Permission)',
+      customerName: 'Vikramaditya Rao',
+      customerPhone: '+91 98450 99001',
+      entitlementType: 'digital_content_access',
+      permissionTimeslotStartIso: new Date(nowMs - 5 * dayMs).toISOString(),
+      permissionTimeslotEndIso: new Date(nowMs + 85 * dayMs).toISOString(),
+      maxUsageCount: null,
+      consumedUsageCount: 6,
+      status: 'active',
+      flag1: 'digital_course',
+      flag2: '90_day_permission',
+      createdAtIso: new Date(nowMs - 5 * dayMs).toISOString(),
+      updatedAtIso: new Date(nowMs).toISOString(),
+    },
+  ];
+
+  const customerSubscriptions: RuntimeCustomerSubscription[] = [
+    {
+      id: 'sub-seed-omni-01',
+      tenantId: 't-uni-06',
+      catalogueItemId: 'ci-sub-pro-monthly-tuni06',
+      planName: 'OmniPass Pro Monthly Membership',
+      customerName: 'Divya Nair',
+      customerPhone: '+91 98801 44556',
+      customerEmail: 'divya.nair@example.com',
+      priceMinor: 199900,
+      currency: 'INR',
+      billingInterval: 'monthly',
+      status: 'active',
+      currentPeriodStartIso: new Date(nowMs - 26 * dayMs).toISOString(),
+      currentPeriodEndIso: new Date(nowMs + 4 * dayMs).toISOString(),
+      cancelAtPeriodEnd: false,
+      linkedEntitlementId: 'ent-seed-upgrade-ready-02',
+      createdAtIso: new Date(nowMs - 26 * dayMs).toISOString(),
+      updatedAtIso: new Date(nowMs).toISOString(),
+    },
+  ];
+
   return {
     tenants,
     websites,
@@ -907,11 +1550,63 @@ function createSeededSnapshot(): PlatformRuntimeSnapshot {
     processedWebhookKeys: [],
     notifications: [],
     auditLogs: [],
+    businessUnits,
+    categories,
+    catalogueItems,
+    inventoryItems,
+    inventoryReservations: [],
+    inventoryMovements: [],
+    orders: [],
+    fulfilments: [],
+    entitlements,
+    customerSubscriptions,
   };
 }
 
 function isVitestEnvironment(): boolean {
   return Boolean(process.env.VITEST);
+}
+
+function ensureUniversalCommerceCollections(snapshot: PlatformRuntimeSnapshot): PlatformRuntimeSnapshot {
+  if (
+    !Array.isArray(snapshot.catalogueItems) ||
+    snapshot.catalogueItems.length === 0 ||
+    !snapshot.tenants.some((t) => t.id === 't-uni-06')
+  ) {
+    const fresh = createSeededSnapshot();
+    snapshot.businessUnits = snapshot.businessUnits?.length ? snapshot.businessUnits : fresh.businessUnits;
+    snapshot.categories = snapshot.categories?.length ? snapshot.categories : fresh.categories;
+    snapshot.catalogueItems = snapshot.catalogueItems?.length ? snapshot.catalogueItems : fresh.catalogueItems;
+    snapshot.inventoryItems = snapshot.inventoryItems?.length ? snapshot.inventoryItems : fresh.inventoryItems;
+    snapshot.inventoryReservations = snapshot.inventoryReservations ?? [];
+    snapshot.inventoryMovements = snapshot.inventoryMovements ?? [];
+    snapshot.orders = snapshot.orders ?? [];
+    snapshot.fulfilments = snapshot.fulfilments ?? [];
+    snapshot.entitlements = snapshot.entitlements?.length ? snapshot.entitlements : fresh.entitlements;
+    snapshot.customerSubscriptions = snapshot.customerSubscriptions?.length
+      ? snapshot.customerSubscriptions
+      : fresh.customerSubscriptions;
+
+    for (const ft of fresh.tenants) {
+      if (!snapshot.tenants.some((et) => et.id === ft.id)) {
+        snapshot.tenants.push(ft);
+      }
+      if (!snapshot.websites[ft.id] && fresh.websites[ft.id]) {
+        snapshot.websites[ft.id] = fresh.websites[ft.id]!;
+      }
+    }
+    for (const fr of fresh.resources) {
+      if (!snapshot.resources.some((er) => er.id === fr.id)) {
+        snapshot.resources.push(fr);
+      }
+    }
+    for (const fs of fresh.sessions) {
+      if (!snapshot.sessions.some((es) => es.id === fs.id)) {
+        snapshot.sessions.push(fs);
+      }
+    }
+  }
+  return snapshot;
 }
 
 export function seedStarterWebsiteAndCatalogForNewTenant(
@@ -1030,10 +1725,12 @@ export class RuntimeStateRepository {
           globalThis.__smbRuntimeMtimeMs !== stat.mtimeMs
         ) {
           const raw = readFileSync(RUNTIME_FILE_PATH, 'utf8');
-          globalThis.__smbRuntimeSnapshot = JSON.parse(raw) as PlatformRuntimeSnapshot;
+          globalThis.__smbRuntimeSnapshot = ensureUniversalCommerceCollections(
+            JSON.parse(raw) as PlatformRuntimeSnapshot,
+          );
           globalThis.__smbRuntimeMtimeMs = stat.mtimeMs;
         }
-        return globalThis.__smbRuntimeSnapshot;
+        return ensureUniversalCommerceCollections(globalThis.__smbRuntimeSnapshot);
       }
     } catch {
       // Fallback to in-memory snapshot if file is unreadable
@@ -1043,7 +1740,7 @@ export class RuntimeStateRepository {
       globalThis.__smbRuntimeSnapshot = createSeededSnapshot();
       RuntimeStateRepository.persist();
     }
-    return globalThis.__smbRuntimeSnapshot;
+    return ensureUniversalCommerceCollections(globalThis.__smbRuntimeSnapshot);
   }
 
   public static persist(): void {

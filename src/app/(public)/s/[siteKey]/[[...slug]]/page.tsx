@@ -3,6 +3,7 @@ import { PublicSiteLayout } from '@/components/layout/public/public-site-layout'
 import { PublicSiteView } from '@/components/booking-flow/public-site-view';
 import { WebsiteServiceImpl } from '@/modules/website-builder/website.impl';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
+import { UniversalCommerceService } from '@/modules/commerce/commerce.service';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
 
 export const dynamic = 'force-dynamic';
@@ -71,9 +72,13 @@ export default async function PublicTenantSitePage({ params }: PublicSiteRoutePr
     salon_beauty: 'Luxury Styling, Wellness & Stylist Appointments',
     fitness_yoga: 'Group Fitness Batches, Yoga & Live Seat Reservation',
     general_appointment: 'Professional Online Appointment & Slot Booking',
+    universal_commerce: 'Universal Commerce, Inventory, Slot Booking & Entitlement Platform',
   };
 
-  const tagline = verticalTaglineMap[tenant.vertical] ?? 'Online Slot Booking';
+  const tagline = verticalTaglineMap[tenant.vertical] ?? 'Online Storefront & Slot Booking';
+  const commerceService = new UniversalCommerceService();
+  const catalogueItems = commerceService.listCatalogue(tenant.id, { includeDormant: true });
+  const masterProjection = commerceService.getMasterDataProjection(tenant.id);
 
   return (
     <PublicSiteLayout
@@ -126,6 +131,8 @@ export default async function PublicTenantSitePage({ params }: PublicSiteRoutePr
           services,
           staffMembers,
           sessions,
+          catalogueItems,
+          masterProjection,
         }}
       />
     </PublicSiteLayout>

@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
+import { UniversalCommerceService } from '@/modules/commerce/commerce.service';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
 
 const querySchema = z.object({
@@ -82,6 +83,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         priceMinor: sess.priceMinor,
       }));
 
+    const commerceService = new UniversalCommerceService();
+    const catalogueItems = commerceService.listCatalogue(tenant.id, { includeDormant: true });
+    const masterProjection = commerceService.getMasterDataProjection(tenant.id);
+
     return NextResponse.json(
       {
         tenant: {
@@ -96,6 +101,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         services,
         staffMembers,
         sessions,
+        catalogueItems,
+        masterProjection,
       },
       { status: 200 },
     );

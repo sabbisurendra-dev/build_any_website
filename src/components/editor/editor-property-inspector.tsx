@@ -429,6 +429,66 @@ export function EditorPropertyInspector({
               </Select>
             </div>
           )}
+
+          {'filterItemType' in config && (
+            <div className="space-y-1">
+              <Label className="text-[11px]">Single-Slot Inventory Filter</Label>
+              <Select
+                value={getStr('filterItemType', 'all')}
+                onValueChange={(val) =>
+                  onUpdateConfig(currentSection.id, currentWidget.id, { filterItemType: val })
+                }
+              >
+                <SelectTrigger data-testid="prop-filter-item-type" className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All Offerings (Products + Slots + Courses + Passes)
+                  </SelectItem>
+                  <SelectItem value="physical_product">
+                    Physical Inventory (Milk, Laptop, Retail)
+                  </SelectItem>
+                  <SelectItem value="bookable_resource">
+                    Exclusive Resources (Cricket Turf, Courts)
+                  </SelectItem>
+                  <SelectItem value="service_appointment">
+                    Appointments (Doctor, Salon)
+                  </SelectItem>
+                  <SelectItem value="capacity_session">
+                    Capacity Sessions (20-Seat Yoga Class)
+                  </SelectItem>
+                  <SelectItem value="digital_content">
+                    Digital Courses (90-Day Viewing Permission)
+                  </SelectItem>
+                  <SelectItem value="subscription_plan">
+                    Recurring Subscriptions & Memberships
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {'displayStyle' in config && (
+            <div className="space-y-1">
+              <Label className="text-[11px]">Slot Display Layout</Label>
+              <Select
+                value={getStr('displayStyle', 'cards_grid')}
+                onValueChange={(val) =>
+                  onUpdateConfig(currentSection.id, currentWidget.id, { displayStyle: val })
+                }
+              >
+                <SelectTrigger data-testid="prop-display-style" className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cards_grid">Adaptive Cards Grid (@container)</SelectItem>
+                  <SelectItem value="compact_list">Compact Single-Slot Shelf</SelectItem>
+                  <SelectItem value="master_table">Master Data Table Projection</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/* 3. Site Branding & Theme */}

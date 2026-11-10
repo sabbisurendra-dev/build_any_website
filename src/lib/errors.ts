@@ -12,6 +12,9 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'SLOT_UNAVAILABLE'
   | 'SESSION_CAPACITY_EXCEEDED'
+  | 'OUT_OF_STOCK'
+  | 'ITEM_UNAVAILABLE'
+  | 'ENTITLEMENT_EXPIRED'
   | 'HOLD_EXPIRED'
   | 'IDEMPOTENCY_CONFLICT'
   | 'PAYMENT_SIGNATURE_INVALID'
@@ -55,6 +58,27 @@ export class HoldExpiredError extends AppError {
   constructor(message = 'Your temporary booking hold expired before payment completed.') {
     super('HOLD_EXPIRED', message, 410);
     this.name = 'HoldExpiredError';
+  }
+}
+
+export class InsufficientStockError extends AppError {
+  constructor(message = 'Requested quantity exceeds available inventory stock.') {
+    super('OUT_OF_STOCK', message, 409);
+    this.name = 'InsufficientStockError';
+  }
+}
+
+export class ItemUnavailableError extends AppError {
+  constructor(message = 'This catalogue item is currently dormant or unavailable.') {
+    super('ITEM_UNAVAILABLE', message, 409);
+    this.name = 'ItemUnavailableError';
+  }
+}
+
+export class EntitlementExpiredError extends AppError {
+  constructor(message = 'Your viewing or usage permission timeslot has expired.') {
+    super('ENTITLEMENT_EXPIRED', message, 403);
+    this.name = 'EntitlementExpiredError';
   }
 }
 
