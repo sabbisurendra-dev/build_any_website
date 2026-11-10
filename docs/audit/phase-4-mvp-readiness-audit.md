@@ -2,7 +2,7 @@
 
 **Roles:** Senior Software Architect • Technical Product Manager • QA Lead  
 **Workspace:** `/Users/sabbisurendra/Website Builder - Slot booking`  
-**Connected GitHub Repository:** `https://github.com/sabbisurendra-dev/website_builder_slot_booking`  
+**Connected GitHub Repository:** `https://github.com/sabbisurendra-dev/build_any_website`  
 **Primary Requirements Baseline:** [prd.md](file:///Users/sabbisurendra/Website%20Builder%20-%20Slot%20booking/docs/reference/prd.md) (PRD v2.0) & [market-research.md](file:///Users/sabbisurendra/Website%20Builder%20-%20Slot%20booking/docs/reference/market-research.md)
 
 ---
