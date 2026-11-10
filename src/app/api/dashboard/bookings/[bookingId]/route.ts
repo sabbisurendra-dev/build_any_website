@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
 import { resolveRequestActor } from '@/modules/auth/resolve-actor';
+import { resolveAuthorizedDashboardTenant } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 interface RouteContext {
@@ -23,6 +24,13 @@ export async function PATCH(
   context: RouteContext,
 ): Promise<NextResponse> {
   try {
+    const actor = await resolveRequestActor(request, {
+      scope: 'dashboard',
+    });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
     const { bookingId } = await context.params;
     const idempotencyKey = requireIdempotencyKey(request.headers.get('idempotency-key'));
     const json: unknown = await request.json();
@@ -41,18 +49,12 @@ export async function PATCH(
       );
     }
 
-    const actor = resolveRequestActor(request, {
-      scope: 'dashboard',
-      fallbackTenantId: parsed.data.tenantId,
-    });
-    if (!actor) {
-      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
-    }
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, parsed.data.tenantId);
 
     if (parsed.data.status === 'cancelled') {
       await bookingService.cancelBooking({
         actor,
-        tenantId: parsed.data.tenantId,
+        tenantId: targetTenantId,
         bookingId,
         reason: parsed.data.reason ?? 'Cancelled by business operator from dashboard',
         idempotencyKey,
@@ -62,7 +64,7 @@ export async function PATCH(
 
     const updated = await bookingService.updateBookingOperationalStatus({
       actor,
-      tenantId: parsed.data.tenantId,
+      tenantId: targetTenantId,
       bookingId,
       status: parsed.data.status,
       paymentStatus: parsed.data.paymentStatus,

@@ -388,6 +388,7 @@ export interface CosApprovalRecord {
   executionCycleId: string;
   taskId?: string;
   requestingDepartment: DepartmentCode;
+  createdByUserId?: string;
   title: string;
   proposalVersion: number;
   proposalHash: string;

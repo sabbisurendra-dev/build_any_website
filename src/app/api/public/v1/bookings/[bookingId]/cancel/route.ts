@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 interface RouteContext {
@@ -39,9 +40,11 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       );
     }
 
+    const tenantId = resolvePublicRequestTenantId(request, parsed.data.tenantId);
+
     await bookingService.cancelBooking({
       actor: 'customer_verified_token',
-      tenantId: parsed.data.tenantId,
+      tenantId,
       bookingId,
       reason: parsed.data.reason,
       idempotencyKey,

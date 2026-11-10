@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { AppError } from '@/lib/errors';
+import { requireFounder } from '@/modules/auth/resolve-actor';
 import {
   ceoOrchestrator,
   getCosDashboardSnapshot,
@@ -7,6 +9,8 @@ import {
 
 export async function POST(request: Request) {
   try {
+    await requireFounder(request);
+
     const body = (await request.json()) as {
       projectId?: string;
       conversationId?: string;
@@ -44,15 +48,17 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const status = error instanceof AppError ? error.httpStatus : 500;
+    const code = error instanceof AppError ? error.code : 'CEO_ORCHESTRATION_FAILED';
     return NextResponse.json(
       {
         ok: false,
         error: {
-          code: 'CEO_ORCHESTRATION_FAILED',
+          code,
           message: error instanceof Error ? error.message : 'CEO orchestration failed.',
         },
       },
-      { status: 500 },
+      { status },
     );
   }
 }

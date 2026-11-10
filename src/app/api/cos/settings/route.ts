@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { AppError } from '@/lib/errors';
+import { requireFounder } from '@/modules/auth/resolve-actor';
 import {
   CosStoreRepository,
   getCosDashboardSnapshot,
@@ -7,19 +9,20 @@ import {
 
 export async function POST(request: Request) {
   try {
+    const founder = await requireFounder(request);
+
     const body = (await request.json()) as {
       action: 'toggle_kill_switch' | 'toggle_department' | 'update_budget';
       enabled?: boolean;
       departmentCode?: DepartmentCode;
       monthlyBudgetMinor?: number;
-      actorId?: string;
       reason?: string;
       projectId?: string;
     };
 
     const state = CosStoreRepository.getState();
     const projectId = body.projectId ?? state.projects[0]?.id ?? 'proj-uwb-01';
-    const actorId = body.actorId ?? 'founder-chairman';
+    const actorId = founder.userId;
     const nowIso = new Date().toISOString();
 
     if (body.action === 'toggle_kill_switch' && typeof body.enabled === 'boolean') {
@@ -98,15 +101,17 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   } catch (error) {
+    const status = error instanceof AppError ? error.httpStatus : 500;
+    const code = error instanceof AppError ? error.code : 'SETTINGS_ERROR';
     return NextResponse.json(
       {
         ok: false,
         error: {
-          code: 'SETTINGS_ERROR',
+          code,
           message: error instanceof Error ? error.message : 'Failed to update settings.',
         },
       },
-      { status: 500 },
+      { status },
     );
   }
 }

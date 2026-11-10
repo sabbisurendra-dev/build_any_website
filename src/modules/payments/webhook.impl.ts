@@ -5,12 +5,18 @@ import type {
   WebhookProcessResult,
 } from './webhook.processor';
 import { RazorpayGatewayAdapter } from './razorpay.adapter';
+import { StripeGatewayAdapter } from './stripe.adapter';
 import { SimulatedPaymentGatewayAdapter } from './simulated.adapter';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
+import { db } from '@/db';
+import { paymentWebhookEvents } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
+import type { UUID } from '@/types/domain';
 
 export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort {
   private razorpayGateway = new RazorpayGatewayAdapter();
+  private stripeGateway = new StripeGatewayAdapter();
   private simulatedGateway = new SimulatedPaymentGatewayAdapter();
   private bookingService = new BookingServiceImpl();
 
@@ -23,6 +29,8 @@ export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort 
     let isValid = false;
     if (provider === 'razorpay') {
       isValid = this.razorpayGateway.verifyWebhookSignature(rawBody, signatureHeader);
+    } else if (provider === 'stripe') {
+      isValid = this.stripeGateway.verifyWebhookSignature(rawBody, signatureHeader);
     } else if (provider === 'simulated') {
       isValid = this.simulatedGateway.verifyWebhookSignature(rawBody, signatureHeader);
     }
@@ -35,14 +43,39 @@ export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort 
       );
     }
 
-    // 2. Idempotent Deduplication persisted in RuntimeStateRepository
+    // 2. Idempotent Deduplication (Postgres table or in-memory fallback)
     const state = RuntimeStateRepository.getState();
     const eventKey = `${provider}:${providerEventId}`;
+
     if (state.processedWebhookKeys.includes(eventKey)) {
       return {
         status: 'duplicate_ignored',
         eventType: 'payment.captured',
       };
+    }
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const [existing] = await db
+          .select()
+          .from(paymentWebhookEvents)
+          .where(
+            and(
+              eq(paymentWebhookEvents.provider, provider),
+              eq(paymentWebhookEvents.providerEventId, providerEventId),
+            ),
+          )
+          .limit(1);
+
+        if (existing && existing.processingStatus === 'processed') {
+          return {
+            status: 'duplicate_ignored',
+            eventType: existing.eventType,
+          };
+        }
+      } catch {
+        // Fall back gracefully to memory state if DB is offline during tests
+      }
     }
 
     // 3. Parse JSON Body safely after signature verification
@@ -53,18 +86,21 @@ export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort 
       throw new AppError('VALIDATION_ERROR', 'Malformed webhook JSON payload.', 400);
     }
 
-    const eventType = (parsed.event as string) || 'payment.captured';
+    const eventType = (parsed.event as string) || (parsed.type as string) || 'payment.captured';
 
     // 4. Process Payment Capture / Failure
-    if (eventType === 'payment.captured' || eventType === 'order.paid') {
-      const payload = (parsed.payload as Record<string, unknown>) ?? {};
+    if (
+      eventType === 'payment.captured' ||
+      eventType === 'order.paid' ||
+      eventType === 'payment_intent.succeeded'
+    ) {
+      const payload = (parsed.payload as Record<string, unknown>) ?? (parsed.data as Record<string, unknown>) ?? {};
       const paymentEntity =
-        ((payload.payment as Record<string, unknown>)?.entity as Record<
-          string,
-          unknown
-        >) ?? {};
+        ((payload.payment as Record<string, unknown>)?.entity as Record<string, unknown>) ??
+        ((payload.object as Record<string, unknown>) ?? {});
       const notes =
         (paymentEntity.notes as Record<string, unknown>) ??
+        (paymentEntity.metadata as Record<string, unknown>) ??
         (parsed.notes as Record<string, unknown>) ??
         {};
 
@@ -85,27 +121,55 @@ export class PaymentWebhookProcessorImpl implements PaymentWebhookProcessorPort 
         bookingId,
         paymentId,
       });
-    } else if (eventType === 'payment.failed') {
-      const payload = (parsed.payload as Record<string, unknown>) ?? {};
+
+      if (process.env.DATABASE_URL) {
+        try {
+          await db
+            .insert(paymentWebhookEvents)
+            .values({
+              provider,
+              providerEventId,
+              eventType,
+              tenantId: tenantId as UUID,
+              signatureVerified: true,
+              payload: parsed,
+              processingStatus: 'processed',
+              processedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              target: [paymentWebhookEvents.provider, paymentWebhookEvents.providerEventId],
+              set: {
+                processingStatus: 'processed',
+                processedAt: new Date(),
+              },
+            });
+        } catch {
+          // Non-fatal logging
+        }
+      }
+    } else if (
+      eventType === 'payment.failed' ||
+      eventType === 'payment_intent.payment_failed'
+    ) {
+      const payload = (parsed.payload as Record<string, unknown>) ?? (parsed.data as Record<string, unknown>) ?? {};
       const paymentEntity =
-        ((payload.payment as Record<string, unknown>)?.entity as Record<
-          string,
-          unknown
-        >) ?? {};
+        ((payload.payment as Record<string, unknown>)?.entity as Record<string, unknown>) ??
+        ((payload.object as Record<string, unknown>) ?? {});
       const notes =
         (paymentEntity.notes as Record<string, unknown>) ??
+        (paymentEntity.metadata as Record<string, unknown>) ??
         (parsed.notes as Record<string, unknown>) ??
         {};
       const tenantId = String(notes.tenantId ?? '');
       const bookingId = String(notes.bookingId ?? '');
-      const orderId = String(paymentEntity.order_id ?? '');
+      const orderId = String(paymentEntity.order_id ?? paymentEntity.id ?? '');
 
       if (tenantId && bookingId && orderId) {
         await this.bookingService.recordPaymentFailure({
           tenantId,
           bookingId,
           providerOrderId: orderId,
-          reason: 'Gateway payment.failed webhook',
+          reason: `Gateway ${eventType} webhook`,
         });
       }
     }

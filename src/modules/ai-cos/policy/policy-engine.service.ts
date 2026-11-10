@@ -251,6 +251,7 @@ export class PolicyEngineService {
     executionCycleId: string;
     taskId?: string;
     requestingDepartment: DepartmentCode;
+    createdByUserId?: string;
     title: string;
     proposalVersion?: number;
     riskLevel: RiskLevel;
@@ -297,6 +298,7 @@ export class PolicyEngineService {
       executionCycleId: input.executionCycleId,
       taskId: input.taskId,
       requestingDepartment: input.requestingDepartment,
+      createdByUserId: input.createdByUserId ?? input.requestingDepartment,
       title: input.title,
       proposalVersion,
       proposalHash,
@@ -386,6 +388,18 @@ export class PolicyEngineService {
     const approval = state.approvals.find((a) => a.id === input.approvalId);
     if (!approval) {
       throw new AppError('NOT_FOUND', `Approval '${input.approvalId}' not found.`, 404);
+    }
+
+    // Rule: Self-approval is strictly forbidden. Approver cannot be the creator/proposer
+    const proposer = approval.createdByUserId ?? approval.requestingDepartment;
+    if (
+      proposer &&
+      input.actorIdentity &&
+      input.actorIdentity.trim().toLowerCase() === proposer.trim().toLowerCase()
+    ) {
+      throw new PolicyScopeViolationError(
+        `Actor '${input.actorIdentity}' cannot approve proposal '${approval.id}' because they are the creator/proposer ('${proposer}'). Self-approval is strictly forbidden.`,
+      );
     }
 
     if (approval.status !== 'pending' && approval.status !== 'changes_requested') {

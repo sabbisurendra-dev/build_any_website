@@ -4,6 +4,7 @@ import { BOOKING_MODELS } from '@/types/domain';
 import { AppError } from '@/lib/errors';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { AvailabilityServiceImpl } from '@/modules/booking/availability.impl';
 
 const availabilityQuerySchema = z.object({
@@ -41,7 +42,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const slots = await availabilityService.listAvailableSlots(parsed.data);
+    const authoritativeTenantId = resolvePublicRequestTenantId(request, parsed.data.tenantId);
+    const slots = await availabilityService.listAvailableSlots({
+      ...parsed.data,
+      tenantId: authoritativeTenantId,
+    });
     return NextResponse.json({ slots, count: slots.length }, { status: 200 });
   } catch (error) {
     if (error instanceof AppError) {

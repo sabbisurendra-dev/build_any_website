@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { AppError } from '@/lib/errors';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { UniversalCommerceService } from '@/modules/commerce/commerce.service';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
 
@@ -31,7 +32,8 @@ const commerceService = new UniversalCommerceService();
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     UniversalCommerceService.sweepExpiredLocksAndEntitlements();
-    const tenantId = request.nextUrl.searchParams.get('tenantId') ?? 't-uni-06';
+    const requestedTenant = request.nextUrl.searchParams.get('tenantId') ?? undefined;
+    const tenantId = resolvePublicRequestTenantId(request, requestedTenant ?? 't-uni-06');
     const state = RuntimeStateRepository.getState();
     const key = tenantId.toLowerCase();
     const tenant = state.tenants.find(
@@ -52,7 +54,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
       { status: 200 },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: error.message } },
+        { status: error.httpStatus },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to load entitlements.' } },
       { status: 500 },
@@ -78,9 +86,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const tenantId = resolvePublicRequestTenantId(request, parsed.data.tenantId);
+
     if (parsed.data.action === 'verify_access') {
       const res = commerceService.verifyEntitlementAccess({
-        tenantId: parsed.data.tenantId,
+        tenantId,
         entitlementId: parsed.data.entitlementId,
         consumeUnit: parsed.data.consumeUnit,
       });
@@ -89,14 +99,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (parsed.data.action === 'renew_subscription') {
       const res = commerceService.renewSubscription({
-        tenantId: parsed.data.tenantId,
+        tenantId,
         subscriptionId: parsed.data.subscriptionId,
       });
       return NextResponse.json(res, { status: 200 });
     }
 
     const res = commerceService.cancelSubscriptionAtPeriodEnd({
-      tenantId: parsed.data.tenantId,
+      tenantId,
       subscriptionId: parsed.data.subscriptionId,
     });
     return NextResponse.json(res, { status: 200 });

@@ -19,15 +19,19 @@ const publicEnvSchema = z.object({
 const serverEnvSchema = publicEnvSchema.extend({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().min(1),
+  APP_RUNTIME_DATABASE_URL: z.string().optional(),
   DIRECT_DATABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SUPABASE_STORAGE_PUBLIC_BUCKET: z.string().min(1).default('website-media'),
   SUPABASE_STORAGE_PRIVATE_BUCKET: z.string().min(1).default('tenant-documents'),
   PAYMENT_DEFAULT_PROVIDER: z
-    .enum(['simulated', 'razorpay', 'cashfree'])
+    .enum(['simulated', 'razorpay', 'cashfree', 'stripe'])
     .default('simulated'),
+  ENABLE_MOCK_PAYMENTS: z.coerce.boolean().default(false),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
   CASHFREE_APP_ID: z.string().optional(),
   CASHFREE_SECRET_KEY: z.string().optional(),
   CASHFREE_WEBHOOK_SECRET: z.string().optional(),

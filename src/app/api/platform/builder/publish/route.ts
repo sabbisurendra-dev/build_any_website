@@ -29,7 +29,7 @@ const publishSchema = z.object({
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const actor = resolveRequestActor(request, {
+    const actor = await resolveRequestActor(request, {
       scope: 'platform',
       defaultRole: 'internal_configurator',
     });

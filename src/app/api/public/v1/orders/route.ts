@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { UniversalCommerceService } from '@/modules/commerce/commerce.service';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
 import { BOOKING_MODELS } from '@/types/domain';
@@ -71,8 +72,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const tenantId = resolvePublicRequestTenantId(request, parsed.data.tenantId);
+
     const result = await commerceService.createOrderAndHold({
-      tenantId: parsed.data.tenantId,
+      tenantId,
       idempotencyKey,
       customer: parsed.data.customer,
       fulfilmentPreference: parsed.data.fulfilmentPreference,

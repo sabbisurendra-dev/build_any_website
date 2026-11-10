@@ -365,3 +365,33 @@ export const bookingStatusHistory = pgTable(
   },
   (t) => [index('idx_booking_status_history_booking').on(t.bookingId, t.createdAt)],
 );
+
+/**
+ * 33. outbox_events — Transactional outbox for dual-write protection across
+ *     checkout saga, booking hold claims, payments, and asynchronous publishing.
+ */
+export const outboxEvents = pgTable(
+  'outbox_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    eventType: varchar('event_type', { length: 120 }).notNull(),
+    aggregateType: varchar('aggregate_type', { length: 80 }).notNull(),
+    aggregateId: varchar('aggregate_id', { length: 120 }).notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    idempotencyKey: varchar('idempotency_key', { length: 160 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull().default('pending'), // 'pending' | 'published' | 'failed'
+    retryCount: integer('retry_count').notNull().default(0),
+    lastError: text('last_error'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_outbox_events_tenant_idem').on(t.tenantId, t.idempotencyKey),
+    index('idx_outbox_events_status_created').on(t.status, t.createdAt),
+    index('idx_outbox_events_tenant_created').on(t.tenantId, t.createdAt),
+  ],
+);
+
