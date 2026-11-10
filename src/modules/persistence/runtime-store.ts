@@ -1708,6 +1708,9 @@ export function seedStarterWebsiteAndCatalogForNewTenant(
 }
 
 export class RuntimeStateRepository {
+  private static persistTimer: NodeJS.Timeout | null = null;
+  private static isWriting = false;
+
   public static getState(): PlatformRuntimeSnapshot {
     if (isVitestEnvironment()) {
       if (!globalThis.__smbRuntimeSnapshot) {
@@ -1730,7 +1733,7 @@ export class RuntimeStateRepository {
           );
           globalThis.__smbRuntimeMtimeMs = stat.mtimeMs;
         }
-        return ensureUniversalCommerceCollections(globalThis.__smbRuntimeSnapshot);
+        return globalThis.__smbRuntimeSnapshot;
       }
     } catch {
       // Fallback to in-memory snapshot if file is unreadable
@@ -1738,25 +1741,47 @@ export class RuntimeStateRepository {
 
     if (!globalThis.__smbRuntimeSnapshot) {
       globalThis.__smbRuntimeSnapshot = createSeededSnapshot();
-      RuntimeStateRepository.persist();
+      RuntimeStateRepository.persist(true);
     }
-    return ensureUniversalCommerceCollections(globalThis.__smbRuntimeSnapshot);
+    return globalThis.__smbRuntimeSnapshot;
   }
 
-  public static persist(): void {
+  public static persist(immediate = false): void {
     if (isVitestEnvironment() || !globalThis.__smbRuntimeSnapshot) {
       return;
     }
+
+    if (immediate) {
+      if (RuntimeStateRepository.persistTimer) {
+        clearTimeout(RuntimeStateRepository.persistTimer);
+        RuntimeStateRepository.persistTimer = null;
+      }
+      RuntimeStateRepository.flushSync();
+      return;
+    }
+
+    if (!RuntimeStateRepository.persistTimer) {
+      RuntimeStateRepository.persistTimer = setTimeout(() => {
+        RuntimeStateRepository.persistTimer = null;
+        RuntimeStateRepository.flushSync();
+      }, 50);
+    }
+  }
+
+  private static flushSync(): void {
+    if (RuntimeStateRepository.isWriting || !globalThis.__smbRuntimeSnapshot) {
+      return;
+    }
+    RuntimeStateRepository.isWriting = true;
     try {
-      writeFileSync(
-        RUNTIME_FILE_PATH,
-        JSON.stringify(globalThis.__smbRuntimeSnapshot, null, 2),
-        'utf8',
-      );
+      const payload = JSON.stringify(globalThis.__smbRuntimeSnapshot, null, 2);
+      writeFileSync(RUNTIME_FILE_PATH, payload, 'utf8');
       const stat = statSync(RUNTIME_FILE_PATH);
       globalThis.__smbRuntimeMtimeMs = stat.mtimeMs;
     } catch {
-      // Ignore write failures in read-only environments
+      // Ignore write failures in read-only / serverless environments
+    } finally {
+      RuntimeStateRepository.isWriting = false;
     }
   }
 
@@ -1765,6 +1790,10 @@ export class RuntimeStateRepository {
    * When `cleanBookings` is true, clears seeded bookings/allocations so tests start on an empty calendar.
    */
   public static resetForTests(cleanBookings = true): void {
+    if (RuntimeStateRepository.persistTimer) {
+      clearTimeout(RuntimeStateRepository.persistTimer);
+      RuntimeStateRepository.persistTimer = null;
+    }
     const fresh = createSeededSnapshot();
     if (cleanBookings) {
       fresh.bookings = [];

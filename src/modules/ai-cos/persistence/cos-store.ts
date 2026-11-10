@@ -880,41 +880,74 @@ export class CosStoreRepository {
     return seeded;
   }
 
-  public static persist(): void {
+  private static persistTimer: NodeJS.Timeout | null = null;
+  private static isWriting = false;
+
+  public static persist(immediate = false): void {
     const state = globalThis.__aicosRuntimeSnapshot;
-    if (!state) return;
-    if (globalThis.__aicosInMemoryTestMode) {
+    if (!state || globalThis.__aicosInMemoryTestMode) {
       return;
     }
 
-    const payload = JSON.stringify(state, null, 2);
-    const primaryPath = getCosStateFilePath();
-
-    try {
-      writeFileSync(primaryPath, payload, 'utf-8');
-      const stat = statSync(primaryPath);
-      globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+    if (immediate) {
+      if (CosStoreRepository.persistTimer) {
+        clearTimeout(CosStoreRepository.persistTimer);
+        CosStoreRepository.persistTimer = null;
+      }
+      CosStoreRepository.flushSync();
       return;
-    } catch {
-      // If primary path failed (e.g. read-only filesystem in Vercel), fallback to /tmp
-      if (primaryPath !== '/tmp/.aicos-runtime-state.json') {
-        try {
-          writeFileSync('/tmp/.aicos-runtime-state.json', payload, 'utf-8');
-          const stat = statSync('/tmp/.aicos-runtime-state.json');
-          globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
-        } catch {
-          // Silently preserve in-memory
+    }
+
+    if (!CosStoreRepository.persistTimer) {
+      CosStoreRepository.persistTimer = setTimeout(() => {
+        CosStoreRepository.persistTimer = null;
+        CosStoreRepository.flushSync();
+      }, 50);
+    }
+  }
+
+  private static flushSync(): void {
+    const state = globalThis.__aicosRuntimeSnapshot;
+    if (!state || CosStoreRepository.isWriting || globalThis.__aicosInMemoryTestMode) {
+      return;
+    }
+    CosStoreRepository.isWriting = true;
+    try {
+      const payload = JSON.stringify(state, null, 2);
+      const primaryPath = getCosStateFilePath();
+
+      try {
+        writeFileSync(primaryPath, payload, 'utf-8');
+        const stat = statSync(primaryPath);
+        globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+        return;
+      } catch {
+        // If primary path failed (e.g. read-only filesystem in Vercel), fallback to /tmp
+        if (primaryPath !== '/tmp/.aicos-runtime-state.json') {
+          try {
+            writeFileSync('/tmp/.aicos-runtime-state.json', payload, 'utf-8');
+            const stat = statSync('/tmp/.aicos-runtime-state.json');
+            globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+          } catch {
+            // Silently preserve in-memory
+          }
         }
       }
+    } finally {
+      CosStoreRepository.isWriting = false;
     }
   }
 
   public static resetForTests(inMemoryOnly = true): CosRuntimeSnapshot {
+    if (CosStoreRepository.persistTimer) {
+      clearTimeout(CosStoreRepository.persistTimer);
+      CosStoreRepository.persistTimer = null;
+    }
     globalThis.__aicosInMemoryTestMode = inMemoryOnly;
     const fresh = buildSeededCosSnapshot();
     globalThis.__aicosRuntimeSnapshot = fresh;
     if (!inMemoryOnly) {
-      this.persist();
+      this.persist(true);
     }
     return fresh;
   }

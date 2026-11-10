@@ -38,15 +38,18 @@ import type {
 } from '@/modules/website-builder/layout.types';
 import { resolveWidgetsForBreakpoint } from '@/modules/website-builder/grid-engine';
 import type { BookingModel, BusinessVertical } from '@/types/domain';
+import dynamic from 'next/dynamic';
 import type {
   RuntimeEntitlementRecord,
   RuntimeFulfilmentRecord,
   RuntimeOrderRecord,
 } from '@/modules/commerce/commerce.types';
-import {
-  CustomerBookingJourney,
-  type PublicCatalogPayload,
-} from './customer-booking-journey';
+import type { PublicCatalogPayload } from './customer-booking-journey';
+
+const CustomerBookingJourney = dynamic(
+  () => import('./customer-booking-journey').then((mod) => mod.CustomerBookingJourney),
+  { ssr: false },
+);
 
 interface PublicSiteViewProps {
   tenantId: string;

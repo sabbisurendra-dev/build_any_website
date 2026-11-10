@@ -4,14 +4,30 @@ import { Badge } from '@/components/ui/badge';
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardReportsPage() {
-  const state = RuntimeStateRepository.getState();
+interface DashboardReportsPageProps {
+  readonly searchParams?: Promise<{ readonly tenant?: string }>;
+}
 
-  const activeBookings = state.bookings.filter(
+export default async function DashboardReportsPage({ searchParams }: DashboardReportsPageProps) {
+  const params = await searchParams;
+  const state = RuntimeStateRepository.getState();
+  const defaultTenant = state.tenants[0]?.id ?? 't-kickoff-01';
+  const tenantQuery = params?.tenant ?? defaultTenant;
+  const activeTenant =
+    state.tenants.find(
+      (t) => t.id === tenantQuery || t.slug.toLowerCase() === tenantQuery.toLowerCase(),
+    ) ?? state.tenants[0];
+  const activeTenantId = activeTenant?.id ?? defaultTenant;
+
+  const tenantBookings = state.bookings.filter((b) => b.tenantId === activeTenantId);
+  const tenantRefunds = state.refunds.filter((r) => r.tenantId === activeTenantId);
+  const tenantNotifications = state.notifications.filter((n) => n.tenantId === activeTenantId);
+
+  const activeBookings = tenantBookings.filter(
     (b) => b.status === 'confirmed' || b.status === 'completed',
   );
   const grossMinor = activeBookings.reduce((acc, b) => acc + b.totalMinor, 0);
-  const cancelledCount = state.bookings.filter((b) => b.status === 'cancelled').length;
+  const cancelledCount = tenantBookings.filter((b) => b.status === 'cancelled').length;
 
   const byModel = {
     exclusive_resource: activeBookings.filter((b) => b.bookingModel === 'exclusive_resource'),
@@ -21,11 +37,18 @@ export default function DashboardReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">Reports & Revenue Analytics</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Live revenue reconciliation, cancellation rates, and performance across booking models.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Reports & Revenue Analytics</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Live revenue reconciliation, cancellation rates, and performance across booking models.
+          </p>
+        </div>
+        {activeTenant && (
+          <Badge variant="outline" className="self-start sm:self-auto text-xs font-mono py-1 px-2.5">
+            Tenant: {activeTenant.name} ({activeTenant.slug})
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -54,7 +77,7 @@ export default function DashboardReportsPage() {
           <CardContent>
             <div className="text-2xl font-bold font-mono">{cancelledCount}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {state.refunds.length} automated refunds processed
+              {tenantRefunds.length} automated refunds processed
             </p>
           </CardContent>
         </Card>
@@ -66,7 +89,7 @@ export default function DashboardReportsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono">{state.notifications.length}</div>
+            <div className="text-2xl font-bold font-mono">{tenantNotifications.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
               WhatsApp & SMS transactional dispatches queued
             </p>
@@ -103,7 +126,7 @@ export default function DashboardReportsPage() {
 
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm">Group Sessions (Model C)</CardTitle>
+            <CardTitle className="text-sm">Group Batches (Model C)</CardTitle>
             <Badge variant="outline">{byModel.capacity_session.length}</Badge>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">

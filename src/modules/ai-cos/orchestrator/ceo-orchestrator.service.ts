@@ -84,20 +84,24 @@ export class CeoOrchestratorService {
     };
     state.agentMessages.push(founderMsg);
 
-    // 2. Retrieve Scoped Project Context (Part 6.2)
-    const scopedContext = this.knowledgeService.assembleScopedContext({
-      projectId: project.id,
-      queryText: rawMessage,
-      departmentCode: 'ceo_office',
-      maxDocs: 4,
-    });
-
-    // 3. Classify Request & Synthesise Plan (Part 6.3–6.5)
+    // 2. Classify Request & Synthesise Plan (Fast Path First: Part 6.3–6.5)
     const plan = this.buildPlanForFounderMessage({
       projectId: project.id,
       rawMessage,
       preferredExecutionMode: input.preferredExecutionMode ?? 'isolated_worktree',
     });
+
+    // 3. Retrieve Scoped Project Context only when task planning/delegation is required (Part 6.2)
+    const contextDocsUsed: string[] = [];
+    if (plan.tasks.length > 0) {
+      const scopedContext = this.knowledgeService.assembleScopedContext({
+        projectId: project.id,
+        queryText: rawMessage,
+        departmentCode: 'ceo_office',
+        maxDocs: 4,
+      });
+      contextDocsUsed.push(...scopedContext.relevantKnowledgeDocs.map((d) => d.slug));
+    }
 
     // Save Founder Request record
     const reqId = `freq-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -129,7 +133,7 @@ export class CeoOrchestratorService {
       metadata: {
         founderRequestId: reqId,
         classification: plan.classification,
-        contextDocsUsed: scopedContext.relevantKnowledgeDocs.map((d) => d.slug),
+        contextDocsUsed,
       },
     });
 
