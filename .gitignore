@@ -20,6 +20,8 @@ coverage/
 test-results/
 playwright-report/
 .runtime-state.json
+.aicos-runtime-state.json
+.aicos-worktrees/
 
 # TypeScript & linting caches
 *.tsbuildinfo

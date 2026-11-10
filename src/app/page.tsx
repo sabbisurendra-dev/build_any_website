@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Sparkles, Building2, ExternalLink, ArrowRight, ShieldCheck, Calendar } from 'lucide-react';
+import { Sparkles, Building2, ExternalLink, ArrowRight, ShieldCheck, Calendar, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,14 +16,20 @@ export default function RootHomePage() {
             </div>
             <span className="font-bold tracking-tight text-lg">Antigravity SlotBook</span>
             <Badge variant="outline" className="ml-2 text-[10px] font-mono">
-              v0.1.0 ARCHITECTURE
+              v0.2.0 + AI-COS
             </Badge>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="default" size="sm" asChild>
+              <Link href="/cos" className="gap-1.5">
+                <Bot className="h-4 w-4" />
+                <span>AI CEO Command Centre</span>
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/platform">Platform Console</Link>
             </Button>
-            <Button size="sm" asChild>
+            <Button variant="secondary" size="sm" asChild>
               <Link href="/dashboard">Business Dashboard</Link>
             </Button>
           </div>
@@ -31,21 +37,47 @@ export default function RootHomePage() {
       </header>
 
       {/* Main Gateway Hub */}
-      <main className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8 text-center space-y-12">
-        <div className="space-y-4 max-w-2xl mx-auto">
+      <main className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8 text-center space-y-12">
+        <div className="space-y-4 max-w-3xl mx-auto">
           <Badge variant="success" className="uppercase font-mono text-[11px] px-3 py-1">
-            Multi-Tenant SaaS Foundation Ready
+            AI Company Operating System (AI-COS) + Universal Commerce SaaS
           </Badge>
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl text-foreground">
-            SMB Website Builder & Slot Booking Platform
+            Universal Website Builder, Commerce & AI CEO Platform
           </h1>
           <p className="text-muted-foreground text-base sm:text-lg leading-relaxed">
-            Select one of the three isolated application surfaces to explore navigation, layout boundaries, and design system components.
+            Explore the Founder Command Centre (AI CEO + 9 specialist departments with Guarded Autonomy) alongside the three multi-tenant SaaS application surfaces.
           </p>
         </div>
 
-        {/* 3 Application Surfaces */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+        {/* 4 Application Surfaces */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+          {/* Surface 0: AI CEO Command Centre */}
+          <Card className="flex flex-col justify-between border-primary/50 bg-primary/5 hover:border-primary transition-colors shadow-sm">
+            <CardHeader className="space-y-2">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <Bot className="h-6 w-6" />
+              </div>
+              <CardTitle className="text-xl">AI CEO Command Centre</CardTitle>
+              <CardDescription>
+                Executive control room for the Human Founder to direct the AI CEO, 9 specialist departments, SHA-256 approval gates, and QA verification.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground space-y-1.5">
+              <p>• Route: <code className="text-foreground">/cos</code></p>
+              <p>• Role: <span className="text-foreground">Founder / Chairman</span></p>
+              <p>• Guarded Autonomy Policy Engine</p>
+            </CardContent>
+            <CardFooter className="pt-2">
+              <Button asChild className="w-full gap-2">
+                <Link href="/cos">
+                  <span>Open Command Centre</span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+
           {/* Surface 1: Platform Console */}
           <Card className="flex flex-col justify-between border-border hover:border-primary/50 transition-colors shadow-sm">
             <CardHeader className="space-y-2">
@@ -63,7 +95,7 @@ export default function RootHomePage() {
               <p>• Metabase-style visual grid editor</p>
             </CardContent>
             <CardFooter className="pt-2">
-              <Button asChild className="w-full gap-2">
+              <Button asChild variant="outline" className="w-full gap-2">
                 <Link href="/platform">
                   <span>Open Console</span>
                   <ArrowRight className="h-4 w-4" />
@@ -128,7 +160,7 @@ export default function RootHomePage() {
 
       {/* Footer */}
       <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
-        <p>Antigravity Multi-Tenant SaaS Platform • India-First SMB Booking Engine</p>
+        <p>Antigravity Multi-Tenant SaaS Platform • AI Company Operating System (AI-COS) Enabled</p>
       </footer>
     </div>
   );

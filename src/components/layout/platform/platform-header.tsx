@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
-import { Menu, Sun, Moon, Bell, ExternalLink } from 'lucide-react';
+import { Menu, Sun, Moon, Bell, ExternalLink, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/components/providers/theme-provider';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +52,18 @@ export function PlatformHeader({ onOpenMobileMenu }: PlatformHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="default"
+          size="sm"
+          asChild
+          className="text-xs gap-1.5 h-8 font-medium"
+        >
+          <Link href="/cos">
+            <Bot className="h-3.5 w-3.5" />
+            <span>AI CEO Command Centre</span>
+          </Link>
+        </Button>
+
         <Button
           variant="outline"
           size="sm"
