@@ -12,7 +12,7 @@
 | Phase | Title | Branch | Status | Commit SHA | Date | Open Issues |
 |---|---|---|---|---|---|---|
 | **Phase 1** | Security Hotfix | `fix/security-hotfix` | **COMPLETED** | `5b11f20` | 2026-11-11 | None. All 5 findings verified, fixed, and tested (59/59 tests green). Approved by Founder. |
-| **Phase 2** | Database Foundation | `feat/db-foundation` | **AWAITING_FOUNDER** | Pending Commit | 2026-11-11 | Clean Drizzle migrations, live row GiST exclusions, RLS on all 43 tenant tables, app_runtime role, PgBouncer transaction-scoped set_config, docker-compose.test.yml & integration test suite. |
+| **Phase 2** | Database Foundation | `feat/db-foundation` | **AWAITING_FOUNDER** | `38518e0` | 2026-11-11 | Clean Drizzle migrations, live row GiST exclusions, RLS on all 43 tenant tables, app_runtime role, PgBouncer transaction-scoped set_config, docker-compose.test.yml & integration test suite. |
 | **Phase 3** | Postgres Repositories | `feat/postgres-repositories` | **NOT_STARTED** | — | — | Awaiting Founder approval of Phase 2. |
 | **Phase 4** | Payments & Checkout Saga | `feat/payment-saga` | **NOT_STARTED** | — | — | Awaiting Founder approval of Phase 3. |
 | **Phase 5** | Real, Small, Separate AI-COS | `feat/aicos-real-loop` | **NOT_STARTED** | — | — | Awaiting Founder approval of Phase 4 & Phase 5 Design Gate. |
