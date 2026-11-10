@@ -42,7 +42,8 @@ export function middleware(request: NextRequest): NextResponse {
     hostWithoutPort === rootWithoutPort ||
     hostWithoutPort === 'localhost' ||
     hostWithoutPort === '127.0.0.1' ||
-    hostWithoutPort === '[::1]'
+    hostWithoutPort === '[::1]' ||
+    hostWithoutPort.endsWith('.vercel.app')
   ) {
     return NextResponse.next();
   }

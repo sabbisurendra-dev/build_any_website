@@ -31,3 +31,5 @@ next-env.d.ts
 *.pem
 .vercel/
 .supabase/
+.vercel
+.env*
