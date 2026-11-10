@@ -1,8 +1,8 @@
 # Hardening Programme Progress Tracker
 
 **Repository:** `sabbisurendra-dev/build_any_website`  
-**Current Active Branch:** `feat/payment-saga`  
-**Base Commit:** `9c337f8` (on `feat/postgres-repositories`)  
+**Current Active Branch:** `feat/aicos-real-loop`  
+**Base Commit:** `ca8fd8d` (on `feat/payment-saga`)  
 **Started At:** 2026-11-10T23:58:00+05:30  
 
 ---
@@ -14,8 +14,8 @@
 | **Phase 1** | Security Hotfix | `fix/security-hotfix` | **COMPLETED** | `5b11f20` | 2026-11-11 | None. All 5 findings verified, fixed, and tested (59/59 tests green). Approved by Founder. |
 | **Phase 2** | Database Foundation | `feat/db-foundation` | **COMPLETED** | `645d447` | 2026-11-11 | Clean Drizzle migrations, live row GiST exclusions, RLS on all 43 tenant tables, app_runtime role, PgBouncer transaction-scoped set_config, docker-compose.test.yml & integration test suite. Approved by Founder. |
 | **Phase 3** | Postgres Repositories | `feat/postgres-repositories` | **COMPLETED** | `9c337f8` | 2026-11-11 | Replaced runtime memory maps with Postgres/Drizzle repositories (BookingRepositoryPort, CommerceRepositoryPort, PostgresBookingRepository, PostgresCommerceRepository, OutboxService), atomic checkout saga, GiST conflict catch -> 409 SlotUnavailableError, transactional outbox pattern, and comprehensive error tests (76/76 tests green). Approved by Founder. |
-| **Phase 4** | Payments & Checkout Saga | `feat/payment-saga` | **AWAITING_FOUNDER** | `91dccee` | 2026-11-11 | Real HMAC-SHA256 signature verification (Razorpay & Stripe), mock payments gated by ENABLE_MOCK_PAYMENTS, webhook idempotency via payment_webhook_events deduplication, atomic two-phase commit saga with automatic rollback on expired holds, and hold expiration worker protected by CRON_SECRET (85/85 tests green). |
-| **Phase 5** | Real, Small, Separate AI-COS | `feat/aicos-real-loop` | **NOT_STARTED** | — | — | Awaiting Founder approval of Phase 4 & Phase 5 Design Gate. |
+| **Phase 4** | Payments & Checkout Saga | `feat/payment-saga` | **COMPLETED** | `ca8fd8d` | 2026-11-11 | Real HMAC-SHA256 signature verification (Razorpay & Stripe), mock payments gated by ENABLE_MOCK_PAYMENTS, webhook idempotency via payment_webhook_events deduplication, atomic two-phase commit saga with automatic rollback on expired holds, and hold expiration worker protected by CRON_SECRET (85/85 tests green). Approved by Founder. |
+| **Phase 5** | Real, Small, Separate AI-COS | `feat/aicos-real-loop` | **AWAITING_FOUNDER** | Pending commit | 2026-11-11 | Approved design gate (`docs/aicos/ARCHITECTURE.md`), real marketing copy agent with structured output (`MarketingCopyOutputSchema`), fast/cheap vs slow/capable model router, read-only commerce bridge, and human-in-the-loop approval queue with self-approval prevention (94/94 tests green). |
 
 ---
 
@@ -107,6 +107,22 @@
 
 ---
 
+## Phase 5 Deliverables & Verification
+- `docs/aicos/ARCHITECTURE.md`: Complete AI-COS architectural and design specification (approved at Phase 5 Design Gate).
+- `src/modules/ai-cos/core/commerce-bridge.ts`: Read-only commerce observer (`CosCommerceReadBridge` / `CosCommerceReadPort`) giving AI-COS read access to catalogue items and storefront summaries while strictly prohibiting direct mutation of inventory, bookings, price plans, or orders.
+- `src/modules/ai-cos/departments/marketing-agent.ts`: Real Marketing Growth & Copy Generator agent (`marketing_growth`) producing structured outputs adhering to `MarketingCopyOutputSchema` (`zod`: `suggestedAction`, `confidence`, `draftContent`, `targetAudience`, `reasoning`, `estimatedImpact`, `requiresHumanApproval`).
+- `src/modules/ai-cos/runtime/model-router.service.ts`: Model router selecting between Tier 1 (fast/cheap: Gemini Flash / Claude Haiku / GPT-4o Mini) and Tier 2 (slow/capable: Claude Sonnet / GPT-4o / Gemini Pro), budget enforcement, reviewer separation, and global kill switch.
+- `src/modules/ai-cos/policy/approval-queue.service.ts`: Human-in-the-loop pending actions queue (`ApprovalQueueService`) computing SHA-256 proposal hashes, strictly blocking agent self-approval and non-founder decisions (HTTP 403 `PolicyScopeViolationError`), and blocking silent resubmission of rejected hashes.
+- `src/modules/ai-cos/index.ts`: Re-exported Phase 5 services and schemas.
+- `tests/unit/aicos-real-loop.test.ts`: 9 unit tests verifying structured output schema conformity, fast/cheap vs slow/capable model tier routing, read-only commerce isolation, human-in-the-loop approval workflows, and self-approval prevention.
+- **Verification Commands:**
+  - `npx tsc --noEmit` -> PASS (0 errors)
+  - `pnpm lint` -> PASS (0 problems)
+  - `npx vitest run` -> PASS (94/94 unit tests passing in 13 files)
+  - `npx vitest run --config vitest.integration.config.ts` -> PASS (2/2 integration tests passing in 1 file)
+
+---
+
 ## Session Log
 
 - **2026-11-10:** Hardening programme initialized from base commit `2acc195`. Branch `fix/security-hotfix` created. Phase 1 started.
@@ -114,3 +130,5 @@
 - **2026-11-11:** Founder approved Phase 1 (`APPROVED PHASE 1`). Branch `feat/db-foundation` created. Phase 2 database foundation implemented: clean Drizzle migrations, live row GiST exclusion, universal commerce constraints, RLS on all 43 tenant tables with `app_runtime` non-superuser role, transaction-scoped PgBouncer context, and unit/integration test harnesses. Phase 2 marked AWAITING_FOUNDER.
 - **2026-11-11:** Founder approved Phase 2 (`APPROVED PHASE 2`). Branch `feat/postgres-repositories` created. Phase 3 Postgres repositories implemented: abstract repository ports, Postgres & in-memory adapters, transactional booking holds with GiST 409 translation, transactional multi-engine checkout with atomic inventory holds, transactional outbox pattern, and error suite (76/76 tests green). Phase 3 marked AWAITING_FOUNDER.
 - **2026-11-11:** Founder approved Phase 3 (`APPROVED PHASE 3`). Branch `feat/payment-saga` created. Phase 4 Payments & Checkout Saga implemented: real HMAC verification (Razorpay & Stripe), mock payments gated by `ENABLE_MOCK_PAYMENTS`, webhook deduplication, atomic confirmation saga with automatic rollback on expired holds, hold expiration worker guarded by `CRON_SECRET`, and payment saga test suite (85/85 unit tests green). Phase 4 marked AWAITING_FOUNDER.
+- **2026-11-11:** Founder approved Phase 4 (`APPROVED PHASE 4`). Branch `feat/aicos-real-loop` created. Phase 5 design specification `docs/aicos/ARCHITECTURE.md` submitted for Design Gate review.
+- **2026-11-11:** Founder approved Phase 5 Design Gate (`APPROVED AICOS DESIGN`). Phase 5 implementation completed: real marketing copy agent with structured output, fast/cheap vs slow/capable model router, read-only commerce bridge, human-in-the-loop approval queue with self-approval prevention, and AI-COS test suite (94/94 unit tests green). Phase 5 marked AWAITING_FOUNDER.

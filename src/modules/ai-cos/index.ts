@@ -20,6 +20,10 @@ export const policyEngine = new PolicyEngineService();
 export const modelRouter = new ModelRouterService();
 export const ceoOrchestrator = new CeoOrchestratorService();
 
+export * from './core/commerce-bridge';
+export * from './departments/marketing-agent';
+export * from './policy/approval-queue.service';
+
 export {
   BudgetExceededError,
   CeoOrchestratorService,

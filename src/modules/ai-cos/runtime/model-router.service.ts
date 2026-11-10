@@ -30,6 +30,36 @@ export class BudgetExceededError extends AppError {
 
 export class ModelRouterService {
   /**
+   * Selects between fast/cheap (Tier 1) and slow/capable (Tier 2) model tiers
+   * based on task priority, budget, and department needs (Finding 5.2 & Architecture §3).
+   */
+  public selectModelTier(
+    tier: 'fast_cheap' | 'slow_capable',
+    _departmentCode: DepartmentCode = 'marketing_growth',
+    options?: { avoidProviderModel?: string },
+  ): { provider: string; model: string; tier: 'fast_cheap' | 'slow_capable' } {
+    if (tier === 'fast_cheap') {
+      let candidate = { provider: 'google_gemini', model: 'gemini-1.5-flash' };
+      if (
+        options?.avoidProviderModel &&
+        `${candidate.provider}/${candidate.model}` === options.avoidProviderModel
+      ) {
+        candidate = { provider: 'anthropic', model: 'claude-3-5-haiku-latest' };
+      }
+      return { ...candidate, tier: 'fast_cheap' };
+    }
+
+    let candidate = { provider: 'anthropic', model: 'claude-3-5-sonnet-latest' };
+    if (
+      options?.avoidProviderModel &&
+      `${candidate.provider}/${candidate.model}` === options.avoidProviderModel
+    ) {
+      candidate = { provider: 'openai', model: 'gpt-4o' };
+    }
+    return { ...candidate, tier: 'slow_capable' };
+  }
+
+  /**
    * Checks which provider API keys or OIDC tokens are present in the server environment
    * without ever exposing secret values.
    */
