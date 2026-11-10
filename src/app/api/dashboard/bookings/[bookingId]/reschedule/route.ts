@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
 import { resolveRequestActor } from '@/modules/auth/resolve-actor';
+import { resolveAuthorizedDashboardTenant } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 interface RouteContext {
@@ -41,6 +42,13 @@ export async function POST(
   context: RouteContext,
 ): Promise<NextResponse> {
   try {
+    const actor = await resolveRequestActor(request, {
+      scope: 'dashboard',
+    });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
     const { bookingId } = await context.params;
     const idempotencyKey = requireIdempotencyKey(request.headers.get('idempotency-key'));
     const json: unknown = await request.json();
@@ -59,13 +67,7 @@ export async function POST(
       );
     }
 
-    const actor = resolveRequestActor(request, {
-      scope: 'dashboard',
-      fallbackTenantId: parsed.data.tenantId,
-    });
-    if (!actor) {
-      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
-    }
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, parsed.data.tenantId);
 
     const sel = parsed.data.newSelection;
     const targetSelection =
@@ -91,7 +93,7 @@ export async function POST(
           };
 
     const result = await bookingService.rescheduleBooking(actor, {
-      tenantId: parsed.data.tenantId,
+      tenantId: targetTenantId,
       bookingId,
       idempotencyKey,
       newSelection: targetSelection,

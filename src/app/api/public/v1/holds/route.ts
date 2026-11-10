@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 const createHoldBodySchema = z.object({
@@ -64,7 +65,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const { tenantId, locationId, customer, selection } = parsed.data;
+    const { tenantId: requestedTenantId, locationId, customer, selection } = parsed.data;
+    const tenantId = resolvePublicRequestTenantId(request, requestedTenantId);
 
     const targetSelection =
       selection.bookingModel === 'exclusive_resource'

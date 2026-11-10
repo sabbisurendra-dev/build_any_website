@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 const checkoutBodySchema = z.object({
@@ -38,8 +39,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const tenantId = resolvePublicRequestTenantId(request, parsed.data.tenantId);
+
     const result = await bookingService.initiateCheckoutPayment({
-      tenantId: parsed.data.tenantId,
+      tenantId,
       bookingId: parsed.data.bookingId,
       holdToken: parsed.data.holdToken,
       idempotencyKey,

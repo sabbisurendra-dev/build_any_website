@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 
 const verifyPaymentSchema = z.discriminatedUnion('simulateFailure', [
@@ -55,9 +56,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const tenantId = resolvePublicRequestTenantId(request, parsed.data.tenantId);
+
     if (parsed.data.simulateFailure === true) {
       const failureState = await bookingService.recordPaymentFailure({
-        tenantId: parsed.data.tenantId,
+        tenantId,
         bookingId: parsed.data.bookingId,
         providerOrderId: parsed.data.providerOrderId,
         reason: parsed.data.reason,
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const result = await bookingService.verifyAndConfirmClientPayment({
-      tenantId: parsed.data.tenantId,
+      tenantId,
       bookingId: parsed.data.bookingId,
       paymentId: parsed.data.paymentId,
       providerOrderId: parsed.data.providerOrderId,

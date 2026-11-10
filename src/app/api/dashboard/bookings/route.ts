@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { requireIdempotencyKey } from '@/lib/idempotency';
 import { resolveRequestActor } from '@/modules/auth/resolve-actor';
+import { resolveAuthorizedDashboardTenant } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 import { BusinessDashboardServiceImpl } from '@/modules/analytics/dashboard.impl';
 import { NotificationDispatcherImpl } from '@/modules/notifications/notification.impl';
@@ -46,25 +47,24 @@ const createManualBookingSchema = z.object({
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const requestedTenant =
-      request.nextUrl.searchParams.get('tenantId') ?? 't-kickoff-01';
+    const actor = await resolveRequestActor(request, {
+      scope: 'dashboard',
+    });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
+    const requestedTenant = request.nextUrl.searchParams.get('tenantId');
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, requestedTenant ?? undefined);
 
     const state = RuntimeStateRepository.getState();
     const tenant = state.tenants.find(
       (t) =>
-        t.id.toLowerCase() === requestedTenant.toLowerCase() ||
-        t.slug.toLowerCase() === requestedTenant.toLowerCase(),
+        t.id.toLowerCase() === targetTenantId.toLowerCase() ||
+        t.slug.toLowerCase() === targetTenantId.toLowerCase(),
     );
     if (!tenant) {
       throw new AppError('NOT_FOUND', 'Tenant not found.', 404);
-    }
-
-    const actor = resolveRequestActor(request, {
-      scope: 'dashboard',
-      fallbackTenantId: tenant.id,
-    });
-    if (!actor) {
-      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
     }
 
     const bookings = await bookingService.listTenantBookings(actor, tenant.id);
@@ -122,6 +122,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const actor = await resolveRequestActor(request, {
+      scope: 'dashboard',
+    });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
     const idempotencyKey = requireIdempotencyKey(request.headers.get('idempotency-key'));
     const json: unknown = await request.json();
     const parsed = createManualBookingSchema.safeParse(json);
@@ -142,13 +149,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { tenantId, locationId, customer, paymentStatus, paymentMethod, selection } =
       parsed.data;
 
-    const actor = resolveRequestActor(request, {
-      scope: 'dashboard',
-      fallbackTenantId: tenantId,
-    });
-    if (!actor) {
-      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
-    }
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, tenantId);
 
     const targetSelection =
       selection.bookingModel === 'exclusive_resource'
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const created = await bookingService.createManualBooking({
       actor,
       command: {
-        tenantId,
+        tenantId: targetTenantId,
         locationId,
         idempotencyKey,
         selection: targetSelection,

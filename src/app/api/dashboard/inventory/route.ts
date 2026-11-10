@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { AppError } from '@/lib/errors';
+import { resolveRequestActor } from '@/modules/auth/resolve-actor';
+import { resolveAuthorizedDashboardTenant } from '@/modules/tenancy/tenant-resolver';
 import { UniversalCommerceService } from '@/modules/commerce/commerce.service';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
 import {
@@ -48,10 +50,17 @@ const commerceService = new UniversalCommerceService();
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    const actor = await resolveRequestActor(request, { scope: 'dashboard' });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
     UniversalCommerceService.sweepExpiredLocksAndEntitlements();
-    const tenantId = request.nextUrl.searchParams.get('tenantId') ?? 't-uni-06';
+    const requestedTenant = request.nextUrl.searchParams.get('tenantId');
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, requestedTenant ?? undefined);
+
     const state = RuntimeStateRepository.getState();
-    const key = tenantId.toLowerCase();
+    const key = targetTenantId.toLowerCase();
     const tenant = state.tenants.find(
       (t) => t.id.toLowerCase() === key || t.slug.toLowerCase() === key,
     );
@@ -98,6 +107,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    const actor = await resolveRequestActor(request, { scope: 'dashboard' });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
     const json: unknown = await request.json();
     const parsed = createItemSchema.safeParse(json);
     if (!parsed.success) {
@@ -113,7 +127,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const created = commerceService.createCatalogueItem(parsed.data);
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, parsed.data.tenantId);
+    const created = commerceService.createCatalogueItem({
+      ...parsed.data,
+      tenantId: targetTenantId,
+    });
     return NextResponse.json({ item: created }, { status: 201 });
   } catch (error) {
     if (error instanceof AppError) {
@@ -131,6 +149,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
+    const actor = await resolveRequestActor(request, { scope: 'dashboard' });
+    if (!actor) {
+      throw new AppError('UNAUTHENTICATED', 'Authentication required.', 401);
+    }
+
     const json: unknown = await request.json();
     const parsed = patchSchema.safeParse(json);
     if (!parsed.success) {
@@ -146,9 +169,11 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const targetTenantId = resolveAuthorizedDashboardTenant(actor, parsed.data.tenantId);
+
     if (parsed.data.patchType === 'catalogue_item') {
       const updated = commerceService.updateCatalogueItemOrStock({
-        tenantId: parsed.data.tenantId,
+        tenantId: targetTenantId,
         catalogueItemId: parsed.data.catalogueItemId,
         status: parsed.data.status,
         flag1: parsed.data.flag1,
@@ -159,7 +184,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
     }
 
     const updatedFul = commerceService.updateFulfilmentStatus({
-      tenantId: parsed.data.tenantId,
+      tenantId: targetTenantId,
       fulfilmentId: parsed.data.fulfilmentId,
       status: parsed.data.status,
     });

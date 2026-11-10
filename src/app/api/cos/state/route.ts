@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { AppError } from '@/lib/errors';
+import { requireFounder } from '@/modules/auth/resolve-actor';
 import {
   CosStoreRepository,
   getCosDashboardSnapshot,
@@ -7,17 +9,35 @@ import {
 } from '@/modules/ai-cos';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get('projectId') ?? undefined;
-  const snapshot = getCosDashboardSnapshot(projectId);
-  return NextResponse.json({
-    ok: true,
-    data: snapshot,
-  });
+  try {
+    await requireFounder(request);
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get('projectId') ?? undefined;
+    const snapshot = getCosDashboardSnapshot(projectId);
+    return NextResponse.json({
+      ok: true,
+      data: snapshot,
+    });
+  } catch (error) {
+    const status = error instanceof AppError ? error.httpStatus : 500;
+    const code = error instanceof AppError ? error.code : 'STATE_HANDLER_ERROR';
+    return NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code,
+          message: error instanceof Error ? error.message : 'Failed to query AI-COS state.',
+        },
+      },
+      { status },
+    );
+  }
 }
 
 export async function POST(request: Request) {
   try {
+    await requireFounder(request);
+
     const body = (await request.json()) as {
       action: 'create_project' | 'upsert_knowledge' | 'reset_demo_state';
       project?: {
@@ -98,15 +118,17 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   } catch (error) {
+    const status = error instanceof AppError ? error.httpStatus : 500;
+    const code = error instanceof AppError ? error.code : 'COS_STATE_ERROR';
     return NextResponse.json(
       {
         ok: false,
         error: {
-          code: 'COS_STATE_ERROR',
+          code,
           message: error instanceof Error ? error.message : 'Failed to mutate AI-COS state.',
         },
       },
-      { status: 500 },
+      { status },
     );
   }
 }

@@ -33,7 +33,7 @@ const createTenantSchema = z.object({
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const actor = resolveRequestActor(request, {
+    const actor = await resolveRequestActor(request, {
       scope: 'platform',
       defaultRole: 'platform_super_admin',
     });
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const actor = resolveRequestActor(request, {
+    const actor = await resolveRequestActor(request, {
       scope: 'platform',
       defaultRole: 'platform_super_admin',
     });

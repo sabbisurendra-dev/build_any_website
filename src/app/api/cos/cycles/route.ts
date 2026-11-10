@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { AppError } from '@/lib/errors';
+import { requireFounder } from '@/modules/auth/resolve-actor';
 import { ceoOrchestrator, getCosDashboardSnapshot } from '@/modules/ai-cos';
 
 export async function POST(request: Request) {
   try {
+    await requireFounder(request);
+
     const body = (await request.json()) as {
       cycleId: string;
       action: 'pause' | 'resume' | 'cancel' | 'complete_external_handoff';

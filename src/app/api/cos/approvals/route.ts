@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { AppError } from '@/lib/errors';
+import { requireFounder } from '@/modules/auth/resolve-actor';
 import { ceoOrchestrator, getCosDashboardSnapshot } from '@/modules/ai-cos';
 
 export async function POST(request: Request) {
   try {
+    const founder = await requireFounder(request);
+
     const body = (await request.json()) as {
       approvalId: string;
-      actorId?: string;
-      actorRole?: 'founder' | 'ceo' | 'department_agent';
       decision: 'approved' | 'rejected' | 'changes_requested';
       expectedProposalHash?: string;
       founderComment?: string;
@@ -29,8 +30,8 @@ export async function POST(request: Request) {
 
     const result = await ceoOrchestrator.handleFounderApprovalDecision({
       approvalId: body.approvalId,
-      actorIdentity: body.actorId ?? 'founder-chairman',
-      actorRole: body.actorRole ?? 'founder',
+      actorIdentity: founder.userId,
+      actorRole: 'founder',
       decision: body.decision,
       expectedProposalHash: body.expectedProposalHash,
       decisionNotes: body.founderComment,

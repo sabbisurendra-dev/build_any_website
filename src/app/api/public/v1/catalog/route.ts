@@ -1,15 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { z } from 'zod';
 import { AppError } from '@/lib/errors';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { extractClientIp } from '@/modules/auth/resolve-actor';
+import { resolvePublicRequestTenantId } from '@/modules/tenancy/tenant-resolver';
 import { BookingServiceImpl } from '@/modules/booking/booking.impl';
 import { UniversalCommerceService } from '@/modules/commerce/commerce.service';
 import { RuntimeStateRepository } from '@/modules/persistence/runtime-store';
-
-const querySchema = z.object({
-  tenantId: z.string().min(1),
-});
 
 /**
  * Public Tenant Catalog Endpoint (`GET /api/public/v1/catalog?tenantId=...`).
@@ -19,25 +15,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     await assertRateLimit(extractClientIp(request), 'public:availability');
 
-    const raw = Object.fromEntries(request.nextUrl.searchParams.entries());
-    const parsed = querySchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Missing or invalid tenantId parameter.',
-          },
-        },
-        { status: 400 },
-      );
-    }
+    const requestedTenant = request.nextUrl.searchParams.get('tenantId') ?? undefined;
+    const resolvedTenantId = resolvePublicRequestTenantId(request, requestedTenant);
 
     BookingServiceImpl.sweepExpiredAllocationsNow();
     const state = RuntimeStateRepository.getState();
-    const key = parsed.data.tenantId.toLowerCase();
     const tenant = state.tenants.find(
-      (t) => t.id.toLowerCase() === key || t.slug.toLowerCase() === key,
+      (t) => t.id.toLowerCase() === resolvedTenantId.toLowerCase() || t.slug.toLowerCase() === resolvedTenantId.toLowerCase(),
     );
 
     if (!tenant || tenant.status !== 'active') {
