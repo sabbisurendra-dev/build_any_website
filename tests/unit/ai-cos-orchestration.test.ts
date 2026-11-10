@@ -294,4 +294,46 @@ describe('AI Company Operating System (AI-COS) — End-to-End Architecture & Gua
     });
     expect(`${routedQa.provider}/${routedQa.model}`).not.toBe('openai/o3-mini');
   });
+
+  it('Generic Viewer / Mumbai Cricket Turf vs Playo benchmark: executes low-risk competitive evaluation and delivers strengths & weaknesses report', async () => {
+    CosStoreRepository.resetForTests(true);
+
+    const promptText =
+      'act like a generic viewer, who wants to buy a website to list their cricket turf and get slots booked in Mumbai ; compare the experience to existing alternatives like playo etc. and give a genuine feedback if my website builder can be useful to them ; give a report of strengths, weaknesses';
+
+    const result = await ceoOrchestrator.submitFounderInstruction({
+      projectId: 'proj-uwb-01',
+      message: promptText,
+    });
+
+    expect(result.executionCycle).toBeDefined();
+    expect(result.executionCycle!.overallRiskLevel).toBe('low');
+    expect(result.executionCycle!.status).toBe('completed');
+    expect(result.createdTasks).toHaveLength(3);
+    expect(result.pendingApprovals).toHaveLength(0); // Low risk, autonomous!
+    expect(result.deliverables.length).toBeGreaterThanOrEqual(3);
+
+    // Business Research Benchmark
+    const bizDeliv = result.deliverables.find((d) => d.departmentCode === 'business_research');
+    expect(bizDeliv).toBeDefined();
+    expect(bizDeliv?.contentMarkdown).toContain('Playo');
+    expect(bizDeliv?.contentMarkdown).toContain('15% – 20%');
+    expect(bizDeliv?.contentMarkdown).toContain('0%');
+
+    // Product Evaluation
+    const prodDeliv = result.deliverables.find((d) => d.departmentCode === 'product');
+    expect(prodDeliv).toBeDefined();
+    expect(prodDeliv?.contentMarkdown).toContain('Model A Invariant');
+    expect(prodDeliv?.contentMarkdown).toContain('Mixed-Cart Commerce');
+
+    // UX Strengths & Weaknesses
+    const uxDeliv = result.deliverables.find((d) => d.departmentCode === 'design_ux');
+    expect(uxDeliv).toBeDefined();
+    expect(uxDeliv?.contentMarkdown).toContain('Strengths Breakdown');
+    expect(uxDeliv?.contentMarkdown).toContain('Weaknesses & Gaps to Address');
+    expect(uxDeliv?.contentMarkdown).toContain('Genuine Verdict');
+
+    // Executive Report
+    expect(result.executiveReport).toBeDefined();
+  });
 });

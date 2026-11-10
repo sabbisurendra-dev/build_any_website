@@ -49,7 +49,15 @@ export interface CosRuntimeSnapshot {
   auditLogs: CosAuditLog[];
 }
 
-const COS_STATE_FILE_PATH = resolve(process.cwd(), '.aicos-runtime-state.json');
+function getCosStateFilePath(): string {
+  // In serverless environments (Vercel / AWS Lambda), the root filesystem is read-only except /tmp
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return '/tmp/.aicos-runtime-state.json';
+  }
+  return resolve(process.cwd(), '.aicos-runtime-state.json');
+}
+
+const COS_STATE_FILE_PATH = getCosStateFilePath();
 
 declare global {
   var __aicosRuntimeSnapshot: CosRuntimeSnapshot | undefined;
@@ -829,21 +837,43 @@ export class CosStoreRepository {
       return globalThis.__aicosRuntimeSnapshot;
     }
 
-    if (existsSync(COS_STATE_FILE_PATH)) {
-      try {
-        const stat = statSync(COS_STATE_FILE_PATH);
-        if (
-          !globalThis.__aicosRuntimeSnapshot ||
-          globalThis.__aicosRuntimeMtimeMs !== stat.mtimeMs
-        ) {
-          const raw = readFileSync(COS_STATE_FILE_PATH, 'utf-8');
-          globalThis.__aicosRuntimeSnapshot = JSON.parse(raw) as CosRuntimeSnapshot;
-          globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+    const primaryPath = getCosStateFilePath();
+    const candidatePaths = [
+      primaryPath,
+      resolve(process.cwd(), '.aicos-runtime-state.json'),
+      '/tmp/.aicos-runtime-state.json',
+    ];
+
+    for (const filePath of candidatePaths) {
+      if (existsSync(filePath)) {
+        try {
+          const stat = statSync(filePath);
+          if (
+            !globalThis.__aicosRuntimeSnapshot ||
+            globalThis.__aicosRuntimeMtimeMs !== stat.mtimeMs
+          ) {
+            const raw = readFileSync(filePath, 'utf-8');
+            const parsed = JSON.parse(raw) as CosRuntimeSnapshot;
+            // Guard: If in-memory already has execution cycles or tasks, do not overwrite with an older snapshot
+            if (
+              globalThis.__aicosRuntimeSnapshot &&
+              globalThis.__aicosRuntimeSnapshot.executionCycles.length > parsed.executionCycles.length
+            ) {
+              return globalThis.__aicosRuntimeSnapshot;
+            }
+            globalThis.__aicosRuntimeSnapshot = parsed;
+            globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+          }
+          return globalThis.__aicosRuntimeSnapshot;
+        } catch {
+          // Fall through to next candidate or in-memory
         }
-        return globalThis.__aicosRuntimeSnapshot;
-      } catch {
-        // Fallback to fresh seeded state if file was corrupted
       }
+    }
+
+    // Critical: If an in-memory snapshot already exists, DO NOT discard it!
+    if (globalThis.__aicosRuntimeSnapshot) {
+      return globalThis.__aicosRuntimeSnapshot;
     }
 
     const seeded = buildSeededCosSnapshot();
@@ -858,12 +888,26 @@ export class CosStoreRepository {
     if (globalThis.__aicosInMemoryTestMode) {
       return;
     }
+
+    const payload = JSON.stringify(state, null, 2);
+    const primaryPath = getCosStateFilePath();
+
     try {
-      writeFileSync(COS_STATE_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8');
-      const stat = statSync(COS_STATE_FILE_PATH);
+      writeFileSync(primaryPath, payload, 'utf-8');
+      const stat = statSync(primaryPath);
       globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+      return;
     } catch {
-      // Ignore write errors in read-only environments
+      // If primary path failed (e.g. read-only filesystem in Vercel), fallback to /tmp
+      if (primaryPath !== '/tmp/.aicos-runtime-state.json') {
+        try {
+          writeFileSync('/tmp/.aicos-runtime-state.json', payload, 'utf-8');
+          const stat = statSync('/tmp/.aicos-runtime-state.json');
+          globalThis.__aicosRuntimeMtimeMs = stat.mtimeMs;
+        } catch {
+          // Silently preserve in-memory
+        }
+      }
     }
   }
 

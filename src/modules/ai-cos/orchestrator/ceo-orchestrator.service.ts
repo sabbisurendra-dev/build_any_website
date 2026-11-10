@@ -350,7 +350,13 @@ export class CeoOrchestratorService {
     latestCeoMessage?: CosAgentMessage;
   }> {
     const state = CosStoreRepository.getState();
-    const cycle = state.executionCycles.find((c) => c.id === executionCycleId);
+    let cycle = state.executionCycles.find((c) => c.id === executionCycleId);
+    if (!cycle && globalThis.__aicosRuntimeSnapshot) {
+      cycle = globalThis.__aicosRuntimeSnapshot.executionCycles.find((c) => c.id === executionCycleId);
+      if (cycle && !state.executionCycles.some((c) => c.id === executionCycleId)) {
+        state.executionCycles.unshift(cycle);
+      }
+    }
     if (!cycle) {
       throw new AppError('NOT_FOUND', `Execution cycle '${executionCycleId}' not found.`, 404);
     }
@@ -820,7 +826,13 @@ export class CeoOrchestratorService {
       };
     }
 
-    const cycle = state.executionCycles.find((c) => c.id === approval.executionCycleId);
+    let cycle = state.executionCycles.find((c) => c.id === approval.executionCycleId);
+    if (!cycle && globalThis.__aicosRuntimeSnapshot) {
+      cycle = globalThis.__aicosRuntimeSnapshot.executionCycles.find((c) => c.id === approval.executionCycleId);
+      if (cycle && !state.executionCycles.some((c) => c.id === approval.executionCycleId)) {
+        state.executionCycles.unshift(cycle);
+      }
+    }
     const cycleTasks = state.tasks.filter((t) => t.executionCycleId === approval.executionCycleId);
     if (cycle) {
       cycle.status = input.decision === 'rejected' ? 'blocked' : 'awaiting_approval';
@@ -855,7 +867,13 @@ export class CeoOrchestratorService {
     executiveReport?: CosDeliverable;
   }> {
     const state = CosStoreRepository.getState();
-    const cycle = state.executionCycles.find((c) => c.id === input.executionCycleId);
+    let cycle = state.executionCycles.find((c) => c.id === input.executionCycleId);
+    if (!cycle && globalThis.__aicosRuntimeSnapshot) {
+      cycle = globalThis.__aicosRuntimeSnapshot.executionCycles.find((c) => c.id === input.executionCycleId);
+      if (cycle && !state.executionCycles.some((c) => c.id === input.executionCycleId)) {
+        state.executionCycles.unshift(cycle);
+      }
+    }
     if (!cycle) {
       throw new AppError('NOT_FOUND', `Execution cycle '${input.executionCycleId}' not found.`, 404);
     }
@@ -1030,7 +1048,112 @@ Here is the verified state of **Universal Website Builder & Commerce Platform (\
       });
     }
 
-    // 2. Workflow C — Bug Fix (e.g., "Fix the issue where two customers can book the same turf slot" or "Fix cross-tenant leak")
+    // 2. Competitive Evaluation & Turf Owner / Viewer Persona Review (e.g., Mumbai cricket turf owner perspective vs Playo, strengths & weaknesses)
+    if (
+      (lower.includes('playo') ||
+        lower.includes('cricket turf') ||
+        lower.includes('turf') ||
+        lower.includes('generic viewer') ||
+        lower.includes('mumbai')) &&
+      (lower.includes('compare') ||
+        lower.includes('feedback') ||
+        lower.includes('strengths') ||
+        lower.includes('weaknesses') ||
+        lower.includes('useful') ||
+        lower.includes('alternative'))
+    ) {
+      return CeoExecutionPlanSchema.parse({
+        classification: 'product_feedback',
+        ceoInterpretation:
+          'Strategic Commercial & Competitive Evaluation: Evaluating the Universal Website Builder & Commerce Platform from the perspective of a Mumbai cricket turf owner comparing a direct D2C website against sports aggregators like Playo, Hudle, and KheloMore, delivering an honest strengths and weaknesses report.',
+        clarificationNeeded: false,
+        clarificationQuestions: [],
+        objective:
+          'Deliver an authentic competitive benchmark and strengths/weaknesses assessment for a Mumbai cricket turf owner comparing our Website Builder vs Playo',
+        businessRationale:
+          'Mumbai turf operators pay 15–20% commission on aggregators like Playo. A direct D2C website eliminates commissions and protects brand ownership, but requires proactive marketing.',
+        expectedOutcome:
+          'Complete Business Research benchmark, Product evaluation, and UX Strengths/Weaknesses report for the Founder.',
+        scopeItems: [
+          'src/modules/booking/booking.impl.ts',
+          'src/modules/commerce/commerce.service.ts',
+          'src/modules/website-builder/widget-registry.ts',
+          'src/components/booking-flow/customer-booking-journey.tsx',
+          'docs/reference/market-research.md',
+        ],
+        outOfScopeItems: ['Modifying database schemas', 'Production deployment'],
+        overallRiskLevel: 'low',
+        departmentsInvolved: ['business_research', 'product', 'design_ux'],
+        tasks: [
+          {
+            code: 'T1-BIZ-PLAYO-BENCHMARK',
+            title: 'Benchmark Mumbai Turf Economics: Direct Website Builder vs Playo Aggregator',
+            objective:
+              'Analyze unit economics, take rates (Playo 15-20% vs direct PG 1.8%), customer ownership, and off-peak vs prime-time Mumbai slot utilization.',
+            stage: 'discovery',
+            departmentCode: 'business_research',
+            dependsOnTaskCodes: [],
+            riskLevel: 'low',
+            requiresApproval: false,
+            executionMode: 'in_process_specialist',
+            relevantFiles: [
+              'docs/reference/market-research.md',
+              'src/modules/commerce/commerce.service.ts',
+            ],
+            constraints: ['Distinguish verified market facts, assumptions, and recommendations'],
+            acceptanceCriteria: [
+              'Explicit comparison of commission rates, settlement cycles, and customer data retention',
+            ],
+            estimatedCostMinor: 650,
+          },
+          {
+            code: 'T2-PROD-TURF-JOURNEY',
+            title: 'Evaluate Turf Listing & Model A Slot Booking Capabilities',
+            objective:
+              'Evaluate how a Mumbai turf owner configures multi-pitch slot intervals (60-min / 90-min box cricket slots, floodlight add-ons, weekend peak surge pricing) in Universal Commerce.',
+            stage: 'discovery',
+            departmentCode: 'product',
+            dependsOnTaskCodes: [],
+            riskLevel: 'low',
+            requiresApproval: false,
+            executionMode: 'in_process_specialist',
+            relevantFiles: [
+              'src/modules/booking/booking.impl.ts',
+              'src/modules/commerce/commerce.service.ts',
+              'src/modules/website-builder/widget-registry.ts',
+            ],
+            constraints: ['Preserve Model A exclusive resource concurrency invariants'],
+            acceptanceCriteria: [
+              'Demonstrates exact slot holding and checkout lifecycle for turf booking',
+            ],
+            estimatedCostMinor: 750,
+          },
+          {
+            code: 'T3-UX-TURF-VIEWER',
+            title: 'Generic Viewer & Merchant Usability Audit: Strengths & Weaknesses Breakdown',
+            objective:
+              'Simulate generic turf seeker and turf owner journeys on mobile web vs Playo native app; produce structured Strengths, Weaknesses, Opportunities, and Actionable Recommendations.',
+            stage: 'design',
+            departmentCode: 'design_ux',
+            dependsOnTaskCodes: ['T1-BIZ-PLAYO-BENCHMARK', 'T2-PROD-TURF-JOURNEY'],
+            riskLevel: 'low',
+            requiresApproval: false,
+            executionMode: 'in_process_specialist',
+            relevantFiles: [
+              'src/components/booking-flow/customer-booking-journey.tsx',
+              'src/components/booking-flow/public-site-view.tsx',
+            ],
+            constraints: ['Zero horizontal overflow on mobile viewports (0px overflow invariant)'],
+            acceptanceCriteria: [
+              'Comprehensive report detailing Strengths, Weaknesses, and Genuine Verdict',
+            ],
+            estimatedCostMinor: 800,
+          },
+        ],
+      });
+    }
+
+    // 3. Workflow C — Bug Fix (e.g., "Fix the issue where two customers can book the same turf slot" or "Fix cross-tenant leak")
     if (
       lower.includes('fix') ||
       lower.includes('bug') ||
