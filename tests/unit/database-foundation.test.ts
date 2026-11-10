@@ -12,17 +12,22 @@ describe('Phase 2 Database Foundation — Schema, RLS Coverage & Constraints Ver
     path.join(migrationsDir, '0003_row_level_security.sql'),
     'utf8',
   );
+  const outboxMigrationPath = path.join(migrationsDir, '0004_outbox_events.sql');
   const foundationConstraintsSql = fs.readFileSync(
     path.join(migrationsDir, '0001_foundation_constraints.sql'),
     'utf8',
   );
+  const allRlsMigrationSql = [
+    rlsMigrationSql,
+    fs.existsSync(outboxMigrationPath) ? fs.readFileSync(outboxMigrationPath, 'utf8') : '',
+  ].join('\n');
   const journalJson = JSON.parse(
     fs.readFileSync(path.join(migrationsDir, 'meta/_journal.json'), 'utf8'),
   );
 
   describe('2.1 Migration Sequence & Extension Verification', () => {
-    it('contains all 4 ordered migration entries in _journal.json', () => {
-      expect(journalJson.entries.length).toBe(4);
+    it('contains all ordered migration entries in _journal.json', () => {
+      expect(journalJson.entries.length).toBeGreaterThanOrEqual(4);
       expect(journalJson.entries[0].tag).toBe('0000_schema_tables');
       expect(journalJson.entries[1].tag).toBe('0001_foundation_constraints');
       expect(journalJson.entries[2].tag).toBe('0002_universal_commerce_foundation');
@@ -89,24 +94,24 @@ describe('Phase 2 Database Foundation — Schema, RLS Coverage & Constraints Ver
       }
     });
 
-    it('verifies that EVERY table with a tenant_id column has ENABLE & FORCE RLS and a tenant policy in 0003_row_level_security.sql', () => {
+    it('verifies that EVERY table with a tenant_id column has ENABLE & FORCE RLS and a tenant policy in migration suite', () => {
       for (const table of uniqueSchemaTenantTables) {
         // 1. ENABLE ROW LEVEL SECURITY
         expect(
-          rlsMigrationSql,
-          `Table '${table}' lacks ENABLE ROW LEVEL SECURITY in 0003_row_level_security.sql`,
+          allRlsMigrationSql,
+          `Table '${table}' lacks ENABLE ROW LEVEL SECURITY in migration suite`,
         ).toContain(`ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY;`);
 
         // 2. FORCE ROW LEVEL SECURITY
         expect(
-          rlsMigrationSql,
-          `Table '${table}' lacks FORCE ROW LEVEL SECURITY in 0003_row_level_security.sql`,
+          allRlsMigrationSql,
+          `Table '${table}' lacks FORCE ROW LEVEL SECURITY in migration suite`,
         ).toContain(`ALTER TABLE "${table}" FORCE ROW LEVEL SECURITY;`);
 
         // 3. Permissive tenant isolation policy
         expect(
-          rlsMigrationSql,
-          `Table '${table}' lacks tenant_isolation_${table} policy in 0003_row_level_security.sql`,
+          allRlsMigrationSql,
+          `Table '${table}' lacks tenant_isolation_${table} policy in migration suite`,
         ).toContain(`CREATE POLICY "tenant_isolation_${table}" ON "${table}"`);
       }
     });

@@ -29,6 +29,13 @@
       "when": 1794337143127,
       "tag": "0003_row_level_security",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794337143128,
+      "tag": "0004_outbox_events",
+      "breakpoints": true
     }
   ]
 }

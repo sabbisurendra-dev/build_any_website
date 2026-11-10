@@ -54,11 +54,35 @@ export interface CreateUniversalOrderInput {
   lines: CreateOrderLineInput[];
 }
 
+import type { CommerceRepositoryPort } from './commerce.repository.port';
+import { InMemoryCommerceRepository } from './in-memory-commerce.repository';
+
 export class UniversalCommerceService {
-  private readonly bookingService = new BookingServiceImpl();
+  private static defaultRepository: CommerceRepositoryPort = new InMemoryCommerceRepository();
+
+  public static setDefaultRepository(repo: CommerceRepositoryPort): void {
+    UniversalCommerceService.defaultRepository = repo;
+  }
+
+  public static getDefaultRepository(): CommerceRepositoryPort {
+    return UniversalCommerceService.defaultRepository;
+  }
+
+  private readonly bookingService: BookingServiceImpl;
+  private readonly repository: CommerceRepositoryPort;
+
+  constructor(repository?: CommerceRepositoryPort, bookingService?: BookingServiceImpl) {
+    this.repository = repository ?? UniversalCommerceService.defaultRepository;
+    this.bookingService = bookingService ?? new BookingServiceImpl();
+  }
+
+  public getRepository(): CommerceRepositoryPort {
+    return this.repository;
+  }
 
   public static resetStateForTests(): void {
     RuntimeStateRepository.resetForTests(true);
+    UniversalCommerceService.defaultRepository.resetForTests?.();
   }
 
   public static sweepExpiredLocksAndEntitlements(nowMs: number = Date.now()): void {

@@ -85,10 +85,32 @@ function canonicalizeSelectionForFingerprint(
  * - Idempotency: Key replay returns identical hold; mutated payload on same key raises 409 `IDEMPOTENCY_CONFLICT`.
  * - Delayed Payment SAVEPOINT Reconciliation: Late webhook/payment after hold TTL re-acquires slot if still free, or marks `captured_requires_refund` and initiates automated refund if taken.
  */
+import type { BookingRepositoryPort } from './booking.repository.port';
+import { InMemoryBookingRepository } from './in-memory-booking.repository';
+
 export class BookingServiceImpl implements BookingServicePort {
+  private static defaultRepository: BookingRepositoryPort = new InMemoryBookingRepository();
+
+  public static setDefaultRepository(repo: BookingRepositoryPort): void {
+    BookingServiceImpl.defaultRepository = repo;
+  }
+
+  public static getDefaultRepository(): BookingRepositoryPort {
+    return BookingServiceImpl.defaultRepository;
+  }
+
   private simulatedGateway = new SimulatedPaymentGatewayAdapter();
   private razorpayGateway = new RazorpayGatewayAdapter();
   private notifications = new NotificationDispatcherImpl();
+  private repository: BookingRepositoryPort;
+
+  constructor(repository?: BookingRepositoryPort) {
+    this.repository = repository ?? BookingServiceImpl.defaultRepository;
+  }
+
+  public getRepository(): BookingRepositoryPort {
+    return this.repository;
+  }
 
   private resolveTenantId(tenantIdOrSlug: string): UUID {
     const state = RuntimeStateRepository.getState();
@@ -1210,5 +1232,6 @@ export class BookingServiceImpl implements BookingServicePort {
    */
   public static resetStateForTests(): void {
     RuntimeStateRepository.resetForTests(true);
+    BookingServiceImpl.defaultRepository.resetForTests?.();
   }
 }

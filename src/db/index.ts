@@ -35,3 +35,18 @@ export function getDb(): AppDatabase {
   }
   return instance;
 }
+
+/**
+ * Lazy proxy exporting `db` instance so callers can use standard `db.select()` / `db.transaction()`
+ * without manually calling `getDb()`.
+ */
+export const db = new Proxy({} as AppDatabase, {
+  get(_target, prop) {
+    const client = getDb();
+    const val = (client as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof val === 'function') {
+      return (val as (...args: unknown[]) => unknown).bind(client);
+    }
+    return val;
+  },
+});

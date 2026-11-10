@@ -32,6 +32,7 @@ export const TENANT_OWNED_TABLES = [
   'notifications',
   'order_lines',
   'orders',
+  'outbox_events',
   'page_layouts',
   'pages',
   'payment_webhook_events',

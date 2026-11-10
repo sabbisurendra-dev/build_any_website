@@ -224,7 +224,12 @@ export const holdStatusEnum = pgEnum('hold_status', [
   'released',
 ]);
 
-export const allocationStatusEnum = pgEnum('allocation_status', ['active', 'released']);
+export const allocationStatusEnum = pgEnum('allocation_status', [
+  'active',
+  'released',
+  'consumed',
+  'cancelled',
+]);
 
 export const paymentProviderEnum = pgEnum('payment_provider', [
   'simulated',

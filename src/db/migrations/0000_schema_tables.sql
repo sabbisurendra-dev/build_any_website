@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;--> statement-breakpoint
 CREATE EXTENSION IF NOT EXISTS btree_gist;--> statement-breakpoint
-CREATE TYPE "public"."allocation_status" AS ENUM('active', 'released');--> statement-breakpoint
+CREATE TYPE "public"."allocation_status" AS ENUM('active', 'released', 'consumed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."billing_interval" AS ENUM('monthly', 'yearly');--> statement-breakpoint
 CREATE TYPE "public"."billing_model" AS ENUM('one_time', 'time_slot', 'fixed_duration_access', 'recurring_subscription', 'usage_pack');--> statement-breakpoint
 CREATE TYPE "public"."booking_model" AS ENUM('exclusive_resource', 'staff_appointment', 'capacity_session');--> statement-breakpoint
